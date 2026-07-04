@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Bewsoa Flow</string>
+    <string name="channel_tasks_name">Task reminders</string>
+    <string name="channel_tasks_desc">Fires after a program block ends so you log it while it\'s fresh.</string>
+    <string name="channel_motivation_name">Motivation</string>
+    <string name="channel_motivation_desc">Random boosts tied to your goals — Bewsoa AI, YKS, SAT, that university abroad.</string>
+</resources>
