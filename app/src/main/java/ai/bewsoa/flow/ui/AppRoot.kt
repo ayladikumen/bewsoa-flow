@@ -5,6 +5,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.Insights
+import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -23,6 +24,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import ai.bewsoa.flow.ui.alerts.AlertsScreen
 import ai.bewsoa.flow.ui.components.GradientBackground
 import ai.bewsoa.flow.ui.progress.ProgressScreen
 import ai.bewsoa.flow.ui.review.ReviewScreen
@@ -39,6 +41,7 @@ private val destinations = listOf(
     Dest("today", "Today", Icons.Rounded.Bolt),
     Dest("progress", "Progress", Icons.Rounded.Insights),
     Dest("review", "Review", Icons.Rounded.EditNote),
+    Dest("alerts", "Alerts", Icons.Rounded.Notifications),
     Dest("settings", "Settings", Icons.Rounded.Settings)
 )
 
@@ -58,6 +61,7 @@ fun AppRoot() {
                 composable("today") { TodayScreen() }
                 composable("progress") { ProgressScreen() }
                 composable("review") { ReviewScreen() }
+                composable("alerts") { AlertsScreen() }
                 composable("settings") { SettingsScreen() }
             }
         }

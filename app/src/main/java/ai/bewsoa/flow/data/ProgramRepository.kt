@@ -2,6 +2,7 @@ package ai.bewsoa.flow.data
 
 import android.content.Context
 import ai.bewsoa.flow.data.db.AppDatabase
+import ai.bewsoa.flow.data.db.NotificationLogEntity
 import ai.bewsoa.flow.data.db.TaskCompletionEntity
 import ai.bewsoa.flow.data.db.WeeklyReviewEntity
 import kotlinx.coroutines.flow.Flow
@@ -43,6 +44,12 @@ class ProgramRepository private constructor(private val db: AppDatabase) {
 
     suspend fun isDone(date: LocalDate, taskId: String): Boolean =
         db.completionDao().get(date.toString(), taskId)?.done == true
+
+    suspend fun getDoneIds(date: LocalDate): Set<String> =
+        db.completionDao().getRange(date.toString(), date.toString())
+            .filter { it.done }
+            .map { it.taskId }
+            .toSet()
 
     /**
      * Walks back from yesterday counting consecutive kept days; today joins the
@@ -90,6 +97,25 @@ class ProgramRepository private constructor(private val db: AppDatabase) {
 
     fun observeReviews(): Flow<List<WeeklyReviewEntity>> =
         db.reviewDao().observeAll()
+
+    // Notification history --------------------------------------------------
+
+    fun observeNotificationLog(): Flow<List<NotificationLogEntity>> =
+        db.notificationLogDao().observeRecent()
+
+    suspend fun logNotification(kind: String, title: String, message: String) {
+        val dao = db.notificationLogDao()
+        dao.insert(
+            NotificationLogEntity(
+                timestamp = System.currentTimeMillis(),
+                kind = kind,
+                title = title,
+                message = message
+            )
+        )
+        // Two weeks of history is plenty for the Alerts screen.
+        dao.pruneOlderThan(System.currentTimeMillis() - 14L * 24 * 60 * 60 * 1000)
+    }
 
     companion object {
         const val KEEP_THRESHOLD = 0.6f

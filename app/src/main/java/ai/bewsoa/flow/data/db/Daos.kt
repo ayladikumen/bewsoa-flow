@@ -1,6 +1,7 @@
 package ai.bewsoa.flow.data.db
 
 import androidx.room.Dao
+import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
@@ -22,6 +23,19 @@ interface CompletionDao {
 
     @Upsert
     suspend fun upsert(completion: TaskCompletionEntity)
+}
+
+@Dao
+interface NotificationLogDao {
+
+    @Insert
+    suspend fun insert(entry: NotificationLogEntity)
+
+    @Query("SELECT * FROM notification_log ORDER BY timestamp DESC LIMIT :limit")
+    fun observeRecent(limit: Int = 50): Flow<List<NotificationLogEntity>>
+
+    @Query("DELETE FROM notification_log WHERE timestamp < :cutoff")
+    suspend fun pruneOlderThan(cutoff: Long)
 }
 
 @Dao

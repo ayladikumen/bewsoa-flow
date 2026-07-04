@@ -13,7 +13,11 @@ import java.time.LocalTime
  */
 object WeeklyProgram {
 
-    fun blocksFor(date: LocalDate): List<TaskBlock> = when (date.dayOfWeek) {
+    fun blocksFor(date: LocalDate): List<TaskBlock> =
+        CustomProgram.current?.get(date.dayOfWeek)?.takeIf { it.isNotEmpty() }
+            ?: builtIn(date)
+
+    private fun builtIn(date: LocalDate): List<TaskBlock> = when (date.dayOfWeek) {
         DayOfWeek.SATURDAY -> saturday
         DayOfWeek.SUNDAY -> sunday
         else -> weekday(date.dayOfWeek)
@@ -22,9 +26,10 @@ object WeeklyProgram {
     fun blockById(date: LocalDate, id: String): TaskBlock? =
         blocksFor(date).firstOrNull { it.id == id }
 
-    fun dayLabel(date: LocalDate): String = when (date.dayOfWeek) {
-        DayOfWeek.SATURDAY -> "TYT Saturday"
-        DayOfWeek.SUNDAY -> "Reset & Build Sunday"
+    fun dayLabel(date: LocalDate): String = when {
+        CustomProgram.current != null -> "My Program"
+        date.dayOfWeek == DayOfWeek.SATURDAY -> "TYT Saturday"
+        date.dayOfWeek == DayOfWeek.SUNDAY -> "Reset & Build Sunday"
         else -> "Weekday Grind"
     }
 
@@ -144,7 +149,7 @@ object WeeklyProgram {
         TaskBlock(
             "su_review", "Weekly review", Track.REVIEW,
             LocalTime.of(18, 30), LocalTime.of(19, 0),
-            "20 minutes that steer the whole week. Fill it in the Review tab."
+            "The report builds itself from your logs — just add notes in the Review tab."
         ),
         TaskBlock(
             "su_free", "Free time", Track.FREE,

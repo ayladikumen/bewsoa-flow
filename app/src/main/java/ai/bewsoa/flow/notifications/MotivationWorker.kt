@@ -6,6 +6,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import ai.bewsoa.flow.data.ProgramRepository
 import ai.bewsoa.flow.data.SettingsRepository
 import kotlinx.coroutines.flow.first
 import java.time.LocalDateTime
@@ -13,7 +14,8 @@ import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
 /**
- * Self-rechaining worker: shows one goal-related motivational notification,
+ * Self-rechaining worker: shows one motivational notification tied to what the
+ * schedule actually says right now (running block, next block, or the streak),
  * then re-enqueues itself with a random delay so the boosts land at
  * unpredictable times. Quiet outside 09:00–23:00.
  */
@@ -29,7 +31,20 @@ class MotivationWorker(
         val now = LocalDateTime.now()
 
         if (enabled && now.hour in ACTIVE_START until ACTIVE_END) {
-            NotificationHelper.showMotivation(applicationContext, Motivator.random(now))
+            val repo = ProgramRepository.get(applicationContext)
+            val today = now.toLocalDate()
+            val time = now.toLocalTime()
+            val doneIds = repo.getDoneIds(today)
+            val blocks = repo.blocksFor(today).filter { it.counted }
+            val boost = Motivator.contextual(
+                current = blocks.firstOrNull {
+                    time >= it.start && time < it.end && it.id !in doneIds
+                },
+                next = blocks.firstOrNull { it.start > time && it.id !in doneIds },
+                remainingCounted = blocks.count { it.id !in doneIds },
+                streakInfo = repo.computeStreak(today)
+            )
+            NotificationHelper.showMotivation(applicationContext, boost.title, boost.body)
         }
         scheduleNext(applicationContext, intensity)
         return Result.success()

@@ -1,91 +1,57 @@
 package ai.bewsoa.flow.ui.settings
 
-import android.app.AlarmManager
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.os.Build
-import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.core.app.NotificationManagerCompat
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import ai.bewsoa.flow.data.SettingsRepository
 import ai.bewsoa.flow.ui.AppViewModelProvider
 import ai.bewsoa.flow.ui.components.GlowCard
 import ai.bewsoa.flow.ui.components.SectionHeader
 import ai.bewsoa.flow.ui.theme.Coral
 import ai.bewsoa.flow.ui.theme.Cyan
+import ai.bewsoa.flow.ui.theme.Mint
 import ai.bewsoa.flow.ui.theme.Outline
 import ai.bewsoa.flow.ui.theme.TextBright
 import ai.bewsoa.flow.ui.theme.TextDim
 import ai.bewsoa.flow.ui.theme.Violet
-import ai.bewsoa.flow.ui.theme.VioletDeep
-import kotlin.math.roundToInt
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+private val updatedStamp = DateTimeFormatter.ofPattern("MMM d, HH:mm", Locale.US)
 
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
-    val context = LocalContext.current
-    val offset by viewModel.reminderOffset.collectAsStateWithLifecycle()
-    val motivationEnabled by viewModel.motivationEnabled.collectAsStateWithLifecycle()
-    val intensity by viewModel.motivationIntensity.collectAsStateWithLifecycle()
-
-    // Permission states re-checked every time the user comes back from system settings.
-    var refreshKey by remember { mutableIntStateOf(0) }
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) refreshKey++
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-    val notificationsEnabled = remember(refreshKey) {
-        NotificationManagerCompat.from(context).areNotificationsEnabled()
-    }
-    val exactAlarmsAllowed = remember(refreshKey) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            context.getSystemService(AlarmManager::class.java)
-                ?.canScheduleExactAlarms() == true
-        } else {
-            true
-        }
-    }
+    val ui by viewModel.ui.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
@@ -100,87 +66,111 @@ fun SettingsScreen(
             color = TextBright
         )
 
-        if (!notificationsEnabled || !exactAlarmsAllowed) {
-            GlowCard(accent = Coral) {
-                SectionHeader("Needs attention")
-                Spacer(Modifier.height(8.dp))
-                if (!notificationsEnabled) {
-                    PermissionRow(
-                        text = "Notifications are off — reminders can't reach you.",
-                        action = "Enable"
-                    ) { openNotificationSettings(context) }
-                }
-                if (!exactAlarmsAllowed) {
-                    PermissionRow(
-                        text = "Exact alarms not allowed — reminders may drift by a few minutes.",
-                        action = "Allow"
-                    ) { openExactAlarmSettings(context) }
-                }
-            }
-        }
+        Text(
+            "Notification settings live in the Alerts tab.",
+            style = MaterialTheme.typography.bodySmall,
+            color = TextDim
+        )
 
-        GlowCard {
-            SectionHeader("Task-end reminder")
-            Spacer(Modifier.height(8.dp))
-            var sliderValue by remember(offset) { mutableFloatStateOf(offset.toFloat()) }
+        GlowCard(accent = Cyan) {
+            SectionHeader("Program · update from markdown with AI")
+            Spacer(Modifier.height(6.dp))
             Text(
-                "${sliderValue.roundToInt()} minutes after a block ends",
-                style = MaterialTheme.typography.bodyMedium,
-                color = TextBright
-            )
-            Slider(
-                value = sliderValue,
-                onValueChange = { sliderValue = it },
-                onValueChangeFinished = {
-                    viewModel.setReminderOffset(sliderValue.roundToInt())
+                if (ui.customActive) {
+                    "AI-built program active" +
+                        if (ui.updatedAt > 0L) {
+                            " · " + Instant.ofEpochMilli(ui.updatedAt)
+                                .atZone(ZoneId.systemDefault()).format(updatedStamp)
+                        } else ""
+                } else {
+                    "Built-in program active"
                 },
-                valueRange = 0f..60f,
-                steps = 11,
-                colors = SliderDefaults.colors(
-                    thumbColor = Cyan,
-                    activeTrackColor = Violet,
-                    inactiveTrackColor = Outline
-                )
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (ui.customActive) Mint else TextBright
             )
+            Spacer(Modifier.height(12.dp))
             Text(
-                "The nudge that asks whether the block got done. 20 minutes is the default breathing room.",
+                "Edit your weekly program below, then let Claude rebuild the app's schedule " +
+                    "from it. Blocks keep their history when they keep their place.",
                 style = MaterialTheme.typography.bodySmall,
                 color = TextDim
             )
-        }
-
-        GlowCard {
-            SectionHeader("Motivation boosts")
-            Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        "Random notifications",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextBright
-                    )
-                    Text(
-                        "Tied to your goals — Bewsoa AI, Exact Hour, YKS, the university abroad.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextDim
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                Switch(
-                    checked = motivationEnabled,
-                    onCheckedChange = viewModel::setMotivationEnabled,
-                    colors = SwitchDefaults.colors(
-                        checkedTrackColor = Violet,
-                        checkedThumbColor = Color.White
-                    )
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = ui.mdText,
+                onValueChange = viewModel::setMdText,
+                label = { Text("weekly_program.md") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(240.dp),
+                textStyle = MaterialTheme.typography.bodySmall,
+                shape = RoundedCornerShape(14.dp),
+                colors = programFieldColors()
+            )
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(
+                value = ui.apiKey,
+                onValueChange = viewModel::setApiKey,
+                label = { Text("Anthropic API key") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                shape = RoundedCornerShape(14.dp),
+                colors = programFieldColors()
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Stays on this phone. Get one at console.anthropic.com.",
+                style = MaterialTheme.typography.labelSmall,
+                color = TextDim
+            )
+            if (ui.error != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    ui.error!!,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Coral
                 )
             }
-            if (motivationEnabled) {
-                Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IntensityChip("Chill", "~2/day", SettingsRepository.INTENSITY_CHILL, intensity, viewModel::setMotivationIntensity)
-                    IntensityChip("Normal", "~4/day", SettingsRepository.INTENSITY_NORMAL, intensity, viewModel::setMotivationIntensity)
-                    IntensityChip("Beast", "~7/day", SettingsRepository.INTENSITY_BEAST, intensity, viewModel::setMotivationIntensity)
+            Spacer(Modifier.height(12.dp))
+            Button(
+                onClick = viewModel::rebuildWithAi,
+                enabled = !ui.loading,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Violet)
+            ) {
+                if (ui.loading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = Color.White
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        "Rebuilding…",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Color.White
+                    )
+                } else {
+                    Text(
+                        if (ui.justUpdated) "Program updated ✓" else "Rebuild program with AI",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Color.White
+                    )
+                }
+            }
+            if (ui.customActive) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = viewModel::resetToBuiltIn) {
+                        Text("Reset to built-in program", color = TextDim)
+                    }
                 }
             }
         }
@@ -189,7 +179,7 @@ fun SettingsScreen(
             SectionHeader("About")
             Spacer(Modifier.height(8.dp))
             Text(
-                "Bewsoa Flow v1.0",
+                "Bewsoa Flow v1.1",
                 style = MaterialTheme.typography.bodyMedium,
                 color = TextBright
             )
@@ -206,55 +196,12 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun PermissionRow(text: String, action: String, onClick: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text,
-            style = MaterialTheme.typography.bodySmall,
-            color = TextBright,
-            modifier = Modifier.weight(1f)
-        )
-        TextButton(onClick = onClick) {
-            Text(action, color = Cyan)
-        }
-    }
-}
-
-@Composable
-private fun IntensityChip(
-    label: String,
-    detail: String,
-    value: String,
-    selected: String,
-    onSelect: (String) -> Unit
-) {
-    FilterChip(
-        selected = selected == value,
-        onClick = { onSelect(value) },
-        label = {
-            Column(Modifier.padding(vertical = 6.dp)) {
-                Text(label, style = MaterialTheme.typography.labelLarge)
-                Text(detail, style = MaterialTheme.typography.labelSmall, color = TextDim)
-            }
-        },
-        colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = VioletDeep,
-            selectedLabelColor = TextBright,
-            labelColor = TextDim
-        )
-    )
-}
-
-private fun openNotificationSettings(context: Context) {
-    val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-        .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-    context.startActivity(intent)
-}
-
-private fun openExactAlarmSettings(context: Context) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
-            .setData(Uri.fromParts("package", context.packageName, null))
-        context.startActivity(intent)
-    }
-}
+private fun programFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = Violet,
+    unfocusedBorderColor = Outline,
+    focusedLabelColor = Cyan,
+    unfocusedLabelColor = TextDim,
+    cursorColor = Cyan,
+    focusedTextColor = TextBright,
+    unfocusedTextColor = TextBright
+)

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import ai.bewsoa.flow.BewsoaFlowApp
 import ai.bewsoa.flow.data.ProgramRepository
+import ai.bewsoa.flow.ui.alerts.AlertsViewModel
 import ai.bewsoa.flow.ui.progress.ProgressViewModel
 import ai.bewsoa.flow.ui.review.ReviewViewModel
 import ai.bewsoa.flow.ui.settings.SettingsViewModel
@@ -23,6 +24,10 @@ object AppViewModelProvider {
         initializer {
             val app = this[APPLICATION_KEY] as BewsoaFlowApp
             ReviewViewModel(ProgramRepository.get(app))
+        }
+        initializer {
+            val app = this[APPLICATION_KEY] as BewsoaFlowApp
+            AlertsViewModel(app)
         }
         initializer {
             val app = this[APPLICATION_KEY] as BewsoaFlowApp
