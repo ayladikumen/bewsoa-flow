@@ -38,9 +38,17 @@ class SettingsRepository private constructor(private val context: Context) {
 
     // Program override (MD + AI) --------------------------------------------
 
+    /** Which AI rebuilds the program: [PROVIDER_CLAUDE] or [PROVIDER_GEMINI]. */
+    val aiProvider: Flow<String> =
+        context.settingsStore.data.map { it[KEY_AI_PROVIDER] ?: PROVIDER_CLAUDE }
+
     /** Anthropic API key for the program updater. Stored locally, never synced. */
     val apiKey: Flow<String> =
         context.settingsStore.data.map { it[KEY_API_KEY] ?: "" }
+
+    /** Google Gemini API key for the program updater. Stored locally, never synced. */
+    val geminiApiKey: Flow<String> =
+        context.settingsStore.data.map { it[KEY_GEMINI_KEY] ?: "" }
 
     /** The generated schedule JSON; null means the built-in program is active. */
     val programJson: Flow<String?> =
@@ -53,8 +61,16 @@ class SettingsRepository private constructor(private val context: Context) {
     val programUpdatedAt: Flow<Long> =
         context.settingsStore.data.map { it[KEY_PROGRAM_UPDATED] ?: 0L }
 
+    suspend fun setAiProvider(value: String) {
+        context.settingsStore.edit { it[KEY_AI_PROVIDER] = value }
+    }
+
     suspend fun setApiKey(key: String) {
         context.settingsStore.edit { it[KEY_API_KEY] = key }
+    }
+
+    suspend fun setGeminiApiKey(key: String) {
+        context.settingsStore.edit { it[KEY_GEMINI_KEY] = key }
     }
 
     suspend fun setProgram(json: String, markdown: String) {
@@ -78,11 +94,15 @@ class SettingsRepository private constructor(private val context: Context) {
         const val INTENSITY_CHILL = "chill"
         const val INTENSITY_NORMAL = "normal"
         const val INTENSITY_BEAST = "beast"
+        const val PROVIDER_CLAUDE = "claude"
+        const val PROVIDER_GEMINI = "gemini"
 
         private val KEY_OFFSET = intPreferencesKey("reminder_offset_minutes")
         private val KEY_MOTIVATION = booleanPreferencesKey("motivation_enabled")
         private val KEY_INTENSITY = stringPreferencesKey("motivation_intensity")
+        private val KEY_AI_PROVIDER = stringPreferencesKey("ai_provider")
         private val KEY_API_KEY = stringPreferencesKey("anthropic_api_key")
+        private val KEY_GEMINI_KEY = stringPreferencesKey("gemini_api_key")
         private val KEY_PROGRAM_JSON = stringPreferencesKey("program_json")
         private val KEY_PROGRAM_MD = stringPreferencesKey("program_md")
         private val KEY_PROGRAM_UPDATED = longPreferencesKey("program_updated_at")
