@@ -12,6 +12,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import ai.bewsoa.flow.MainActivity
 import ai.bewsoa.flow.R
+import ai.bewsoa.flow.data.ProgramRepository
 import ai.bewsoa.flow.data.TaskBlock
 import java.time.LocalDate
 
@@ -60,7 +61,7 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-    fun showTaskEnd(context: Context, block: TaskBlock, date: LocalDate, offsetMinutes: Int) {
+    suspend fun showTaskEnd(context: Context, block: TaskBlock, date: LocalDate, offsetMinutes: Int) {
         if (!canNotify(context)) return
         val id = notificationId(date, block.id)
 
@@ -92,18 +93,20 @@ object NotificationHelper {
             .build()
 
         NotificationManagerCompat.from(context).notify(id, notification)
+        ProgramRepository.get(context).logNotification("task", title, text)
     }
 
-    fun showMotivation(context: Context, message: String) {
+    suspend fun showMotivation(context: Context, title: String, message: String) {
         if (!canNotify(context)) return
         val notification = NotificationCompat.Builder(context, CHANNEL_MOTIVATION)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Bewsoa Flow ⚡")
+            .setContentTitle(title)
             .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
             .setContentIntent(openAppIntent(context, MOTIVATION_ID))
             .setAutoCancel(true)
             .build()
         NotificationManagerCompat.from(context).notify(MOTIVATION_ID, notification)
+        ProgramRepository.get(context).logNotification("motivation", title, message)
     }
 }

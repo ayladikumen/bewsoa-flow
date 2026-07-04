@@ -3,6 +3,17 @@ package ai.bewsoa.flow.data.db
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
+/** Every notification the app has shown, newest first on the Alerts screen. */
+@Entity(tableName = "notification_log")
+data class NotificationLogEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val timestamp: Long,
+    /** "task" for end-of-block reminders, "motivation" for boosts. */
+    val kind: String,
+    val title: String,
+    val message: String
+)
+
 /**
  * One checked-off (or unchecked) block on a given day.
  * Date is stored as ISO yyyy-MM-dd so string ordering equals date ordering.

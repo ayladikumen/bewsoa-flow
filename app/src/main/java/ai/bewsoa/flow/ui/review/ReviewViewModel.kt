@@ -3,123 +3,115 @@ package ai.bewsoa.flow.ui.review
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ai.bewsoa.flow.data.ProgramRepository
+import ai.bewsoa.flow.data.StreakInfo
+import ai.bewsoa.flow.data.WeekStats
+import ai.bewsoa.flow.data.buildWeekStats
 import ai.bewsoa.flow.data.db.WeeklyReviewEntity
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters
 
-/** Editable mirror of [WeeklyReviewEntity], one field per template line. */
-data class ReviewForm(
-    val yksBlocksKept: Int = 0,
+/**
+ * The only part of the weekly review a person fills in. Everything else
+ * (streak, days kept, hours) is generated from tracking and can't be edited.
+ */
+data class NotesForm(
     val tytScore: String = "",
-    val tytPrevScore: String = "",
-    val biggestGap: String = "",
-    val satHours: String = "",
-    val satWeakest: String = "",
-    val exactHourNotes: String = "",
-    val bewsoaClockNotes: String = "",
-    val commitCount: String = "",
-    val gymSessions: Int = 0,
-    val sleepAverage: String = "",
-    val energy: Int = 5,
     val slowedMeDown: String = "",
     val nextWeekTask: String = ""
 )
 
-private val GYM_BLOCK_IDS = setOf("wd_gym", "sa_gym", "su_gym")
+/** The auto-generated report for the current week. */
+data class WeekReport(
+    val stats: WeekStats,
+    val streak: StreakInfo
+)
 
+/** A saved past week: its notes plus the report recomputed from logged days. */
+data class PastWeek(
+    val weekStart: LocalDate,
+    val notes: NotesForm,
+    val savedAt: Long,
+    val stats: WeekStats
+)
+
+@OptIn(ExperimentalCoroutinesApi::class)
 class ReviewViewModel(private val repo: ProgramRepository) : ViewModel() {
 
     val weekStart: LocalDate =
         LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
 
-    private val _form = MutableStateFlow(ReviewForm())
-    val form: StateFlow<ReviewForm> = _form.asStateFlow()
+    /** Non-fillable weekly report: recomputed live from every logged day. */
+    val report: StateFlow<WeekReport?> = repo.observeWeek(weekStart)
+        .mapLatest { rows ->
+            WeekReport(
+                stats = buildWeekStats(weekStart, rows),
+                streak = repo.computeStreak(LocalDate.now())
+            )
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private val _notes = MutableStateFlow(NotesForm())
+    val notes: StateFlow<NotesForm> = _notes.asStateFlow()
 
     private val _justSaved = MutableStateFlow(false)
     val justSaved: StateFlow<Boolean> = _justSaved.asStateFlow()
 
-    val pastReviews: StateFlow<List<WeeklyReviewEntity>> = repo.observeReviews()
+    /** Past saved weeks, each with its report rebuilt from that week's logs. */
+    val pastWeeks: StateFlow<List<PastWeek>> = repo.observeReviews()
+        .mapLatest { saved ->
+            saved.filter { it.weekStart != weekStart.toString() }
+                .mapNotNull { entity ->
+                    val start = runCatching { LocalDate.parse(entity.weekStart) }
+                        .getOrNull() ?: return@mapNotNull null
+                    PastWeek(
+                        weekStart = start,
+                        notes = entity.toNotes(),
+                        savedAt = entity.savedAt,
+                        stats = buildWeekStats(start, repo.getWeek(start))
+                    )
+                }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     init {
         viewModelScope.launch {
-            repo.getReview(weekStart)?.let { saved -> _form.value = saved.toForm() }
-            autofillFromTracking()
+            repo.getReview(weekStart)?.let { saved -> _notes.value = saved.toNotes() }
         }
     }
 
-    fun update(transform: (ReviewForm) -> ReviewForm) {
-        _form.value = transform(_form.value)
+    fun update(transform: (NotesForm) -> NotesForm) {
+        _notes.value = transform(_notes.value)
         _justSaved.value = false
     }
 
     fun save() {
         viewModelScope.launch {
-            repo.saveReview(_form.value.toEntity(weekStart))
+            val n = _notes.value
+            repo.saveReview(
+                WeeklyReviewEntity(
+                    weekStart = weekStart.toString(),
+                    tytScore = n.tytScore,
+                    slowedMeDown = n.slowedMeDown,
+                    nextWeekTask = n.nextWeekTask,
+                    savedAt = System.currentTimeMillis()
+                )
+            )
             _justSaved.value = true
         }
     }
-
-    /**
-     * Pre-fills the counters the app already knows from tracking:
-     * YKS morning blocks kept and gym sessions done this week.
-     */
-    private suspend fun autofillFromTracking() {
-        val doneRows = repo.getWeek(weekStart).filter { it.done }
-        val yksKept = doneRows
-            .filter { it.taskId == "wd_yks_morning" }
-            .map { it.date }
-            .distinct().size
-        val gymDone = doneRows
-            .filter { it.taskId in GYM_BLOCK_IDS }
-            .map { it.date to it.taskId }
-            .distinct().size
-        _form.value = _form.value.copy(
-            yksBlocksKept = maxOf(_form.value.yksBlocksKept, yksKept),
-            gymSessions = maxOf(_form.value.gymSessions, gymDone)
-        )
-    }
 }
 
-private fun WeeklyReviewEntity.toForm() = ReviewForm(
-    yksBlocksKept = yksBlocksKept,
+private fun WeeklyReviewEntity.toNotes() = NotesForm(
     tytScore = tytScore,
-    tytPrevScore = tytPrevScore,
-    biggestGap = biggestGap,
-    satHours = satHours,
-    satWeakest = satWeakest,
-    exactHourNotes = exactHourNotes,
-    bewsoaClockNotes = bewsoaClockNotes,
-    commitCount = commitCount,
-    gymSessions = gymSessions,
-    sleepAverage = sleepAverage,
-    energy = energy,
     slowedMeDown = slowedMeDown,
     nextWeekTask = nextWeekTask
-)
-
-private fun ReviewForm.toEntity(weekStart: LocalDate) = WeeklyReviewEntity(
-    weekStart = weekStart.toString(),
-    yksBlocksKept = yksBlocksKept,
-    tytScore = tytScore,
-    tytPrevScore = tytPrevScore,
-    biggestGap = biggestGap,
-    satHours = satHours,
-    satWeakest = satWeakest,
-    exactHourNotes = exactHourNotes,
-    bewsoaClockNotes = bewsoaClockNotes,
-    commitCount = commitCount,
-    gymSessions = gymSessions,
-    sleepAverage = sleepAverage,
-    energy = energy,
-    slowedMeDown = slowedMeDown,
-    nextWeekTask = nextWeekTask,
-    savedAt = System.currentTimeMillis()
 )

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -35,6 +36,43 @@ class SettingsRepository private constructor(private val context: Context) {
         context.settingsStore.edit { it[KEY_INTENSITY] = value }
     }
 
+    // Program override (MD + AI) --------------------------------------------
+
+    /** Anthropic API key for the program updater. Stored locally, never synced. */
+    val apiKey: Flow<String> =
+        context.settingsStore.data.map { it[KEY_API_KEY] ?: "" }
+
+    /** The generated schedule JSON; null means the built-in program is active. */
+    val programJson: Flow<String?> =
+        context.settingsStore.data.map { it[KEY_PROGRAM_JSON] }
+
+    /** The user's last markdown source, so edits survive app restarts. */
+    val programMd: Flow<String?> =
+        context.settingsStore.data.map { it[KEY_PROGRAM_MD] }
+
+    val programUpdatedAt: Flow<Long> =
+        context.settingsStore.data.map { it[KEY_PROGRAM_UPDATED] ?: 0L }
+
+    suspend fun setApiKey(key: String) {
+        context.settingsStore.edit { it[KEY_API_KEY] = key }
+    }
+
+    suspend fun setProgram(json: String, markdown: String) {
+        context.settingsStore.edit {
+            it[KEY_PROGRAM_JSON] = json
+            it[KEY_PROGRAM_MD] = markdown
+            it[KEY_PROGRAM_UPDATED] = System.currentTimeMillis()
+        }
+    }
+
+    /** Back to the built-in program; keeps the markdown so edits aren't lost. */
+    suspend fun clearProgram() {
+        context.settingsStore.edit {
+            it.remove(KEY_PROGRAM_JSON)
+            it.remove(KEY_PROGRAM_UPDATED)
+        }
+    }
+
     companion object {
         const val DEFAULT_OFFSET = 20
         const val INTENSITY_CHILL = "chill"
@@ -44,6 +82,10 @@ class SettingsRepository private constructor(private val context: Context) {
         private val KEY_OFFSET = intPreferencesKey("reminder_offset_minutes")
         private val KEY_MOTIVATION = booleanPreferencesKey("motivation_enabled")
         private val KEY_INTENSITY = stringPreferencesKey("motivation_intensity")
+        private val KEY_API_KEY = stringPreferencesKey("anthropic_api_key")
+        private val KEY_PROGRAM_JSON = stringPreferencesKey("program_json")
+        private val KEY_PROGRAM_MD = stringPreferencesKey("program_md")
+        private val KEY_PROGRAM_UPDATED = longPreferencesKey("program_updated_at")
 
         @Volatile
         private var instance: SettingsRepository? = null

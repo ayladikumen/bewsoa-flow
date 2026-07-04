@@ -11,9 +11,15 @@ private val monthDay = DateTimeFormatter.ofPattern("MMM d", Locale.US)
 fun formatTime(time: LocalTime): String =
     String.format(Locale.US, "%02d:%02d", time.hour, time.minute)
 
-fun formatHours(minutes: Long): String =
-    if (minutes < 60) "${minutes}m"
-    else String.format(Locale.US, "%.1fh", minutes / 60.0)
+fun formatHours(minutes: Long): String {
+    val h = minutes / 60
+    val m = minutes % 60
+    return when {
+        h == 0L -> "${m}m"
+        m == 0L -> "${h}h"
+        else -> "${h}h ${m}m"
+    }
+}
 
 fun formatCountdown(duration: Duration): String {
     val total = duration.seconds.coerceAtLeast(0)

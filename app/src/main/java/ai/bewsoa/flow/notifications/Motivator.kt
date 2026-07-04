@@ -1,8 +1,10 @@
 package ai.bewsoa.flow.notifications
 
+import ai.bewsoa.flow.data.StreakInfo
+import ai.bewsoa.flow.data.TaskBlock
 import ai.bewsoa.flow.data.Track
-import java.time.DayOfWeek
-import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /**
  * The voice of the app. Every line is tied to a real goal — Bewsoa AI,
@@ -68,20 +70,52 @@ object Motivator {
         "You're building a company, a device, and a future abroad — from a weekly markdown file. Keep going."
     )
 
+    /** A motivation notification: the title names what it's about. */
+    data class Boost(val title: String, val body: String)
+
+    private val hhmm = DateTimeFormatter.ofPattern("HH:mm", Locale.US)
+
+    private fun poolFor(track: Track): List<String> = when (track) {
+        Track.YKS -> morning + study
+        Track.TYT -> study + streak
+        Track.SAT -> sat
+        Track.PROJECT -> project
+        Track.GYM -> gym
+        Track.REVIEW -> streak
+        Track.MEAL, Track.FREE -> general
+    }
+
     /**
-     * Picks a pool that fits the moment: study talk while YKS is on,
-     * project talk in the late evening, streak talk on Sundays.
+     * Ties the boost to what the schedule actually says right now:
+     * the block that's running, or the next one coming up, or —
+     * once the day's blocks are behind — the streak itself.
      */
-    fun random(now: LocalDateTime): String {
-        val pool = when {
-            now.dayOfWeek == DayOfWeek.SUNDAY && now.hour >= 17 -> streak + general
-            now.hour < 12 -> morning + general
-            now.hour < 17 -> morning + study
-            now.hour < 19 -> gym + general
-            now.hour < 22 -> study + sat + streak
-            else -> project + general
-        }
-        return pool.random()
+    fun contextual(
+        current: TaskBlock?,
+        next: TaskBlock?,
+        remainingCounted: Int,
+        streakInfo: StreakInfo
+    ): Boost = when {
+        current != null -> Boost(
+            title = "${current.track.emoji} Now: ${current.title}",
+            body = poolFor(current.track).random()
+        )
+        next != null -> Boost(
+            title = "${next.track.emoji} At ${next.start.format(hhmm)}: ${next.title}",
+            body = poolFor(next.track).random()
+        )
+        remainingCounted == 0 -> Boost(
+            title = "🔥 ${streakInfo.current} day streak — day logged",
+            body = (streak + general).random()
+        )
+        else -> Boost(
+            title = "⚡ $remainingCounted block${if (remainingCounted == 1) "" else "s"} not logged yet",
+            body = if (!streakInfo.yesterdayKept) {
+                "Yesterday slipped. Never miss twice — log what you finished and close today kept."
+            } else {
+                (streak + general).random()
+            }
+        )
     }
 
     /** Second line of the task-end reminder, matched to the block's track. */
