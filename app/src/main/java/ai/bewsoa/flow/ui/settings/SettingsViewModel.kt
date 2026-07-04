@@ -15,13 +15,19 @@ import kotlinx.coroutines.launch
 
 data class ProgramUiState(
     val mdText: String = "",
-    val apiKey: String = "",
+    val provider: String = SettingsRepository.PROVIDER_CLAUDE,
+    val claudeKey: String = "",
+    val geminiKey: String = "",
     val customActive: Boolean = false,
     val updatedAt: Long = 0L,
     val loading: Boolean = false,
     val error: String? = null,
     val justUpdated: Boolean = false
-)
+) {
+    /** The key for the currently selected provider. */
+    val apiKey: String
+        get() = if (provider == SettingsRepository.PROVIDER_GEMINI) geminiKey else claudeKey
+}
 
 class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -34,7 +40,9 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _ui.value = ProgramUiState(
                 mdText = settings.programMd.first() ?: loadBundledMd(),
-                apiKey = settings.apiKey.first(),
+                provider = settings.aiProvider.first(),
+                claudeKey = settings.apiKey.first(),
+                geminiKey = settings.geminiApiKey.first(),
                 customActive = settings.programJson.first() != null,
                 updatedAt = settings.programUpdatedAt.first()
             )
@@ -50,17 +58,34 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         _ui.value = _ui.value.copy(mdText = value, justUpdated = false)
     }
 
-    fun setApiKey(value: String) {
-        _ui.value = _ui.value.copy(apiKey = value)
-        viewModelScope.launch { settings.setApiKey(value) }
+    fun setProvider(value: String) {
+        _ui.value = _ui.value.copy(provider = value, error = null)
+        viewModelScope.launch { settings.setAiProvider(value) }
     }
 
-    /** Sends the markdown to the Claude API and installs the returned schedule. */
+    fun setApiKey(value: String) {
+        val gemini = _ui.value.provider == SettingsRepository.PROVIDER_GEMINI
+        _ui.value = if (gemini) {
+            _ui.value.copy(geminiKey = value)
+        } else {
+            _ui.value.copy(claudeKey = value)
+        }
+        viewModelScope.launch {
+            if (gemini) settings.setGeminiApiKey(value) else settings.setApiKey(value)
+        }
+    }
+
+    /** Sends the markdown to the selected AI API and installs the returned schedule. */
     fun rebuildWithAi() {
         val state = _ui.value
         if (state.loading) return
         if (state.apiKey.isBlank()) {
-            _ui.value = state.copy(error = "Enter your Anthropic API key first.")
+            val name = if (state.provider == SettingsRepository.PROVIDER_GEMINI) {
+                "Gemini"
+            } else {
+                "Anthropic"
+            }
+            _ui.value = state.copy(error = "Enter your $name API key first.")
             return
         }
         if (state.mdText.isBlank()) {
@@ -69,7 +94,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         }
         _ui.value = state.copy(loading = true, error = null, justUpdated = false)
         viewModelScope.launch {
-            AiProgramUpdater.rebuild(state.apiKey.trim(), state.mdText)
+            AiProgramUpdater.rebuild(state.provider, state.apiKey.trim(), state.mdText)
                 .onSuccess { json ->
                     settings.setProgram(json, state.mdText)
                     CustomProgram.activate(json)

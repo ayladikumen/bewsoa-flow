@@ -16,6 +16,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -30,6 +32,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import ai.bewsoa.flow.data.SettingsRepository
 import ai.bewsoa.flow.ui.AppViewModelProvider
 import ai.bewsoa.flow.ui.components.GlowCard
 import ai.bewsoa.flow.ui.components.SectionHeader
@@ -40,6 +43,7 @@ import ai.bewsoa.flow.ui.theme.Outline
 import ai.bewsoa.flow.ui.theme.TextBright
 import ai.bewsoa.flow.ui.theme.TextDim
 import ai.bewsoa.flow.ui.theme.Violet
+import ai.bewsoa.flow.ui.theme.VioletDeep
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -90,8 +94,8 @@ fun SettingsScreen(
             )
             Spacer(Modifier.height(12.dp))
             Text(
-                "Edit your weekly program below, then let Claude rebuild the app's schedule " +
-                    "from it. Blocks keep their history when they keep their place.",
+                "Edit your weekly program below, pick an AI, and let it rebuild the app's " +
+                    "schedule from it. Blocks keep their history when they keep their place.",
                 style = MaterialTheme.typography.bodySmall,
                 color = TextDim
             )
@@ -108,10 +112,16 @@ fun SettingsScreen(
                 colors = programFieldColors()
             )
             Spacer(Modifier.height(10.dp))
+            val gemini = ui.provider == SettingsRepository.PROVIDER_GEMINI
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ProviderChip("Claude", SettingsRepository.PROVIDER_CLAUDE, ui.provider, viewModel::setProvider)
+                ProviderChip("Gemini", SettingsRepository.PROVIDER_GEMINI, ui.provider, viewModel::setProvider)
+            }
+            Spacer(Modifier.height(10.dp))
             OutlinedTextField(
                 value = ui.apiKey,
                 onValueChange = viewModel::setApiKey,
-                label = { Text("Anthropic API key") },
+                label = { Text(if (gemini) "Gemini API key" else "Anthropic API key") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
@@ -120,7 +130,11 @@ fun SettingsScreen(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                "Stays on this phone. Get one at console.anthropic.com.",
+                if (gemini) {
+                    "Stays on this phone. Get a free one at aistudio.google.com."
+                } else {
+                    "Stays on this phone. Get one at console.anthropic.com."
+                },
                 style = MaterialTheme.typography.labelSmall,
                 color = TextDim
             )
@@ -193,6 +207,31 @@ fun SettingsScreen(
             )
         }
     }
+}
+
+@Composable
+private fun ProviderChip(
+    label: String,
+    value: String,
+    selected: String,
+    onSelect: (String) -> Unit
+) {
+    FilterChip(
+        selected = selected == value,
+        onClick = { onSelect(value) },
+        label = {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(vertical = 6.dp)
+            )
+        },
+        colors = FilterChipDefaults.filterChipColors(
+            selectedContainerColor = VioletDeep,
+            selectedLabelColor = TextBright,
+            labelColor = TextDim
+        )
+    )
 }
 
 @Composable

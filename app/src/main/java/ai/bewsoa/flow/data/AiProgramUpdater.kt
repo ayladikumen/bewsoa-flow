@@ -9,13 +9,17 @@ import javax.net.ssl.HttpsURLConnection
 
 /**
  * Turns the weekly program markdown into the app's JSON schedule by calling
- * the Claude API (Messages API, structured outputs — the response is
- * guaranteed to match [SCHEMA], so parsing never depends on prompt luck).
+ * an AI API — Claude (Messages API, structured outputs) or Gemini
+ * (generateContent, responseSchema). Both constrain the response to the
+ * schedule schema, so parsing never depends on prompt luck.
  */
 object AiProgramUpdater {
 
-    private const val ENDPOINT = "https://api.anthropic.com/v1/messages"
-    private const val MODEL = "claude-opus-4-8"
+    private const val CLAUDE_ENDPOINT = "https://api.anthropic.com/v1/messages"
+    private const val CLAUDE_MODEL = "claude-opus-4-8"
+    private const val GEMINI_MODEL = "gemini-2.5-flash"
+    private const val GEMINI_ENDPOINT =
+        "https://generativelanguage.googleapis.com/v1beta/models/$GEMINI_MODEL:generateContent"
 
     private const val SYSTEM_PROMPT =
         "You convert a personal weekly study/build program written in markdown into a JSON " +
@@ -33,7 +37,15 @@ object AiProgramUpdater {
             "If the markdown implies the same plan for Monday through Friday, output identical " +
             "block lists (same ids) for those five days."
 
-    // Structured-output schema: every object closed with additionalProperties=false.
+    private const val USER_PREFIX = "Convert this weekly program to the JSON schedule:\n\n"
+
+    private val DAYS = listOf(
+        "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"
+    )
+    private val TRACKS = listOf("YKS", "TYT", "SAT", "PROJECT", "GYM", "MEAL", "REVIEW", "FREE")
+    private val BLOCK_FIELDS = listOf("id", "title", "track", "start", "end", "note", "counted")
+
+    // Claude structured-output schema: every object closed with additionalProperties=false.
     private val SCHEMA = """
     {
       "type": "object",
@@ -78,19 +90,34 @@ object AiProgramUpdater {
     """.trimIndent()
 
     /** Returns the validated program JSON, ready for [CustomProgram.activate]. */
-    suspend fun rebuild(apiKey: String, markdown: String): Result<String> =
+    suspend fun rebuild(provider: String, apiKey: String, markdown: String): Result<String> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val response = post(apiKey, buildBody(markdown))
-                val programJson = extractText(response)
+                val programJson = if (provider == SettingsRepository.PROVIDER_GEMINI) {
+                    val response = post(
+                        GEMINI_ENDPOINT,
+                        mapOf("x-goog-api-key" to apiKey),
+                        buildGeminiBody(markdown)
+                    )
+                    extractGeminiText(response)
+                } else {
+                    val response = post(
+                        CLAUDE_ENDPOINT,
+                        mapOf("x-api-key" to apiKey, "anthropic-version" to "2023-06-01"),
+                        buildClaudeBody(markdown)
+                    )
+                    extractClaudeText(response)
+                }
                 // Validate before anyone stores it.
                 CustomProgram.parse(programJson).getOrThrow()
                 programJson
             }
         }
 
-    private fun buildBody(markdown: String): String = JSONObject()
-        .put("model", MODEL)
+    // Claude ------------------------------------------------------------------
+
+    private fun buildClaudeBody(markdown: String): String = JSONObject()
+        .put("model", CLAUDE_MODEL)
         .put("max_tokens", 16000)
         .put("thinking", JSONObject().put("type", "adaptive"))
         .put("system", SYSTEM_PROMPT)
@@ -108,40 +135,12 @@ object AiProgramUpdater {
             JSONArray().put(
                 JSONObject()
                     .put("role", "user")
-                    .put("content", "Convert this weekly program to the JSON schedule:\n\n$markdown")
+                    .put("content", USER_PREFIX + markdown)
             )
         )
         .toString()
 
-    private fun post(apiKey: String, body: String): JSONObject {
-        val connection = (URL(ENDPOINT).openConnection() as HttpsURLConnection).apply {
-            requestMethod = "POST"
-            connectTimeout = 20_000
-            // Opus can think for a while on a full week's schedule.
-            readTimeout = 300_000
-            doOutput = true
-            setRequestProperty("content-type", "application/json")
-            setRequestProperty("x-api-key", apiKey)
-            setRequestProperty("anthropic-version", "2023-06-01")
-        }
-        try {
-            connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-            val code = connection.responseCode
-            val text = (if (code in 200..299) connection.inputStream else connection.errorStream)
-                ?.bufferedReader()?.use { it.readText() }.orEmpty()
-            if (code !in 200..299) {
-                val message = runCatching {
-                    JSONObject(text).getJSONObject("error").getString("message")
-                }.getOrDefault(text.take(200))
-                error("API error $code: $message")
-            }
-            return JSONObject(text)
-        } finally {
-            connection.disconnect()
-        }
-    }
-
-    private fun extractText(response: JSONObject): String {
+    private fun extractClaudeText(response: JSONObject): String {
         when (response.optString("stop_reason")) {
             "max_tokens" -> error("The reply was cut off — try a shorter program file.")
             "refusal" -> error("The model declined this request. Reword the program file and try again.")
@@ -152,5 +151,138 @@ object AiProgramUpdater {
             if (block.getString("type") == "text") return block.getString("text")
         }
         error("The model returned no schedule.")
+    }
+
+    // Gemini ------------------------------------------------------------------
+
+    private fun buildGeminiBody(markdown: String): String = JSONObject()
+        .put(
+            "system_instruction",
+            JSONObject().put("parts", JSONArray().put(JSONObject().put("text", SYSTEM_PROMPT)))
+        )
+        .put(
+            "contents",
+            JSONArray().put(
+                JSONObject()
+                    .put("role", "user")
+                    .put(
+                        "parts",
+                        JSONArray().put(JSONObject().put("text", USER_PREFIX + markdown))
+                    )
+            )
+        )
+        .put(
+            "generationConfig",
+            JSONObject()
+                .put("responseMimeType", "application/json")
+                .put("responseSchema", geminiSchema())
+                .put("maxOutputTokens", 16000)
+                // Straight md→JSON mapping; skip thinking so tokens go to the schedule.
+                .put("thinkingConfig", JSONObject().put("thinkingBudget", 0))
+        )
+        .toString()
+
+    // Gemini's responseSchema has no $ref/$defs, so the block schema is inlined per day.
+    private fun geminiSchema(): JSONObject {
+        fun blocks(): JSONObject {
+            val block = JSONObject()
+                .put("type", "object")
+                .put(
+                    "properties",
+                    JSONObject()
+                        .put(
+                            "id",
+                            JSONObject().put("type", "string")
+                                .put("description", "stable snake_case id, e.g. wd_yks_morning")
+                        )
+                        .put("title", JSONObject().put("type", "string"))
+                        .put(
+                            "track",
+                            JSONObject().put("type", "string").put("enum", JSONArray(TRACKS))
+                        )
+                        .put(
+                            "start",
+                            JSONObject().put("type", "string").put("description", "24h HH:MM")
+                        )
+                        .put(
+                            "end",
+                            JSONObject().put("type", "string").put("description", "24h HH:MM")
+                        )
+                        .put("note", JSONObject().put("type", "string"))
+                        .put("counted", JSONObject().put("type", "boolean"))
+                )
+                .put("required", JSONArray(BLOCK_FIELDS))
+            return JSONObject().put("type", "array").put("items", block)
+        }
+
+        val dayProperties = JSONObject()
+        DAYS.forEach { dayProperties.put(it, blocks()) }
+        return JSONObject()
+            .put("type", "object")
+            .put(
+                "properties",
+                JSONObject().put(
+                    "days",
+                    JSONObject()
+                        .put("type", "object")
+                        .put("properties", dayProperties)
+                        .put("required", JSONArray(DAYS))
+                )
+            )
+            .put("required", JSONArray().put("days"))
+    }
+
+    private fun extractGeminiText(response: JSONObject): String {
+        val blockReason = response.optJSONObject("promptFeedback")
+            ?.optString("blockReason").orEmpty()
+        if (blockReason.isNotEmpty()) {
+            error("The model declined this request. Reword the program file and try again.")
+        }
+        val candidate = response.optJSONArray("candidates")?.optJSONObject(0)
+            ?: error("The model returned no schedule.")
+        when (candidate.optString("finishReason")) {
+            "MAX_TOKENS" -> error("The reply was cut off — try a shorter program file.")
+            "SAFETY", "PROHIBITED_CONTENT", "RECITATION" ->
+                error("The model declined this request. Reword the program file and try again.")
+        }
+        val parts = candidate.optJSONObject("content")?.optJSONArray("parts")
+            ?: error("The model returned no schedule.")
+        val text = buildString {
+            for (i in 0 until parts.length()) {
+                append(parts.getJSONObject(i).optString("text"))
+            }
+        }
+        if (text.isBlank()) error("The model returned no schedule.")
+        return text
+    }
+
+    // Shared ------------------------------------------------------------------
+
+    private fun post(endpoint: String, headers: Map<String, String>, body: String): JSONObject {
+        val connection = (URL(endpoint).openConnection() as HttpsURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 20_000
+            // The model can take a while on a full week's schedule.
+            readTimeout = 300_000
+            doOutput = true
+            setRequestProperty("content-type", "application/json")
+            headers.forEach { (name, value) -> setRequestProperty(name, value) }
+        }
+        try {
+            connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            val code = connection.responseCode
+            val text = (if (code in 200..299) connection.inputStream else connection.errorStream)
+                ?.bufferedReader()?.use { it.readText() }.orEmpty()
+            if (code !in 200..299) {
+                // Anthropic and Gemini both wrap errors as {"error": {"message": ...}}.
+                val message = runCatching {
+                    JSONObject(text).getJSONObject("error").getString("message")
+                }.getOrDefault(text.take(200))
+                error("API error $code: $message")
+            }
+            return JSONObject(text)
+        } finally {
+            connection.disconnect()
+        }
     }
 }
