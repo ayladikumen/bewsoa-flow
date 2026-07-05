@@ -22,9 +22,12 @@ object AiProgramUpdater {
         "https://generativelanguage.googleapis.com/v1beta/models/$GEMINI_MODEL:generateContent"
 
     private const val SYSTEM_PROMPT =
-        "You convert a personal weekly study/build program written in markdown into a JSON " +
-            "schedule for the Bewsoa Flow app. Rules: give every day of the week its blocks in " +
-            "chronological order with non-overlapping 24h HH:MM times. Tracks: YKS (main exam " +
+        "You maintain the JSON schedule of the Bewsoa Flow app. You either convert a weekly " +
+            "study/build program written in markdown into the schedule, or apply the user's " +
+            "requested changes to their current schedule JSON, returning the full updated " +
+            "schedule. Rules: give every day of the week its blocks in " +
+            "chronological order with non-overlapping 24h HH:MM times between 00:00 and 23:59 " +
+            "(write midnight at the end of a day as 23:59, never 24:00). Tracks: YKS (main exam " +
             "deep work and review), TYT (full practice exams), SAT, PROJECT (coding/hardware " +
             "work), GYM, MEAL (food breaks), REVIEW (the weekly review block), FREE (free time). " +
             "Set counted=false only for MEAL and FREE blocks — they don't count toward daily " +
@@ -89,22 +92,35 @@ object AiProgramUpdater {
     }
     """.trimIndent()
 
-    /** Returns the validated program JSON, ready for [CustomProgram.activate]. */
-    suspend fun rebuild(provider: String, apiKey: String, markdown: String): Result<String> =
+    /**
+     * Returns the validated program JSON, ready for [CustomProgram.activate].
+     *
+     * The base program is [currentJson] when an AI-built schedule is already
+     * active, otherwise the [markdown] source; [changeRequest] is what the
+     * user wants different this time.
+     */
+    suspend fun rebuild(
+        provider: String,
+        apiKey: String,
+        markdown: String,
+        currentJson: String?,
+        changeRequest: String
+    ): Result<String> =
         withContext(Dispatchers.IO) {
             runCatching {
+                val userMessage = buildUserMessage(markdown, currentJson, changeRequest)
                 val programJson = if (provider == SettingsRepository.PROVIDER_GEMINI) {
                     val response = post(
                         GEMINI_ENDPOINT,
                         mapOf("x-goog-api-key" to apiKey),
-                        buildGeminiBody(markdown)
+                        buildGeminiBody(userMessage)
                     )
                     extractGeminiText(response)
                 } else {
                     val response = post(
                         CLAUDE_ENDPOINT,
                         mapOf("x-api-key" to apiKey, "anthropic-version" to "2023-06-01"),
-                        buildClaudeBody(markdown)
+                        buildClaudeBody(userMessage)
                     )
                     extractClaudeText(response)
                 }
@@ -114,9 +130,30 @@ object AiProgramUpdater {
             }
         }
 
+    private fun buildUserMessage(
+        markdown: String,
+        currentJson: String?,
+        changeRequest: String
+    ): String = buildString {
+        if (currentJson != null) {
+            append("Here is the user's current schedule JSON:\n\n")
+            append(currentJson)
+        } else {
+            append(USER_PREFIX)
+            append(markdown)
+        }
+        if (changeRequest.isNotBlank()) {
+            append(
+                "\n\nApply exactly the changes the user asks for below and keep every " +
+                    "other block identical, with the same ids:\n"
+            )
+            append(changeRequest)
+        }
+    }
+
     // Claude ------------------------------------------------------------------
 
-    private fun buildClaudeBody(markdown: String): String = JSONObject()
+    private fun buildClaudeBody(userMessage: String): String = JSONObject()
         .put("model", CLAUDE_MODEL)
         .put("max_tokens", 16000)
         .put("thinking", JSONObject().put("type", "adaptive"))
@@ -135,7 +172,7 @@ object AiProgramUpdater {
             JSONArray().put(
                 JSONObject()
                     .put("role", "user")
-                    .put("content", USER_PREFIX + markdown)
+                    .put("content", userMessage)
             )
         )
         .toString()
@@ -155,7 +192,7 @@ object AiProgramUpdater {
 
     // Gemini ------------------------------------------------------------------
 
-    private fun buildGeminiBody(markdown: String): String = JSONObject()
+    private fun buildGeminiBody(userMessage: String): String = JSONObject()
         .put(
             "system_instruction",
             JSONObject().put("parts", JSONArray().put(JSONObject().put("text", SYSTEM_PROMPT)))
@@ -167,7 +204,7 @@ object AiProgramUpdater {
                     .put("role", "user")
                     .put(
                         "parts",
-                        JSONArray().put(JSONObject().put("text", USER_PREFIX + markdown))
+                        JSONArray().put(JSONObject().put("text", userMessage))
                     )
             )
         )

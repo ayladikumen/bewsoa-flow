@@ -2,6 +2,7 @@ package ai.bewsoa.flow.ui.today
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import ai.bewsoa.flow.data.CustomProgram
 import ai.bewsoa.flow.data.ProgramRepository
 import ai.bewsoa.flow.data.StreakInfo
 import ai.bewsoa.flow.data.TaskBlock
@@ -9,6 +10,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
@@ -33,7 +35,7 @@ class TodayViewModel(private val repo: ProgramRepository) : ViewModel() {
 
     private val date = MutableStateFlow(LocalDate.now())
 
-    val uiState: StateFlow<TodayUiState> = date
+    val uiState: StateFlow<TodayUiState> = combine(date, CustomProgram.version) { day, _ -> day }
         .flatMapLatest { day ->
             repo.observeDay(day).mapLatest { rows ->
                 val doneIds = rows.filter { it.done }.map { it.taskId }.toSet()

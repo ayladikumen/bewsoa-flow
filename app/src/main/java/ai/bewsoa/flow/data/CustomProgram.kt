@@ -1,5 +1,8 @@
 package ai.bewsoa.flow.data
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONObject
 import java.time.DayOfWeek
 import java.time.LocalTime
@@ -17,12 +20,20 @@ object CustomProgram {
     var current: Map<DayOfWeek, List<TaskBlock>>? = null
         private set
 
+    /** Bumped whenever the active program changes, so screens can re-read blocks. */
+    private val _version = MutableStateFlow(0)
+    val version: StateFlow<Int> = _version.asStateFlow()
+
     /** Parses and installs the override; leaves the old one in place on failure. */
     fun activate(json: String): Result<Unit> =
-        parse(json).map { program -> current = program }
+        parse(json).map { program ->
+            current = program
+            _version.value++
+        }
 
     fun clear() {
         current = null
+        _version.value++
     }
 
     fun parse(json: String): Result<Map<DayOfWeek, List<TaskBlock>>> = runCatching {
@@ -40,12 +51,19 @@ object CustomProgram {
         program
     }
 
+    /** Models write "24:00" for midnight and sometimes "9:30" — LocalTime accepts neither. */
+    private fun parseTime(raw: String): LocalTime {
+        val text = raw.trim()
+        if (text.startsWith("24")) return LocalTime.of(23, 59)
+        return LocalTime.parse(if (text.indexOf(':') == 1) "0$text" else text)
+    }
+
     private fun JSONObject.toBlock(): TaskBlock = TaskBlock(
         id = getString("id"),
         title = getString("title"),
         track = Track.valueOf(getString("track")),
-        start = LocalTime.parse(getString("start")),
-        end = LocalTime.parse(getString("end")),
+        start = parseTime(getString("start")),
+        end = parseTime(getString("end")),
         note = optString("note", ""),
         counted = optBoolean("counted", true)
     )
