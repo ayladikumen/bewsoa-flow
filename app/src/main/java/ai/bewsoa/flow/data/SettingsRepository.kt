@@ -24,6 +24,14 @@ class SettingsRepository private constructor(private val context: Context) {
     val motivationIntensity: Flow<String> =
         context.settingsStore.data.map { it[KEY_INTENSITY] ?: INTENSITY_NORMAL }
 
+    /** Palette id from ui/theme/Palettes; also read by the widgets. */
+    val appTheme: Flow<String> =
+        context.settingsStore.data.map { it[KEY_APP_THEME] ?: DEFAULT_THEME }
+
+    suspend fun setAppTheme(id: String) {
+        context.settingsStore.edit { it[KEY_APP_THEME] = id }
+    }
+
     suspend fun setReminderOffset(minutes: Int) {
         context.settingsStore.edit { it[KEY_OFFSET] = minutes.coerceIn(0, 60) }
     }
@@ -61,6 +69,36 @@ class SettingsRepository private constructor(private val context: Context) {
     val programUpdatedAt: Flow<Long> =
         context.settingsStore.data.map { it[KEY_PROGRAM_UPDATED] ?: 0L }
 
+    // Weekly coach proposal, waiting for the user to accept or dismiss ---------
+
+    val pendingProposalJson: Flow<String?> =
+        context.settingsStore.data.map { it[KEY_PROPOSAL_JSON] }
+
+    val pendingProposalNote: Flow<String?> =
+        context.settingsStore.data.map { it[KEY_PROPOSAL_NOTE] }
+
+    suspend fun setPendingProposal(json: String, note: String) {
+        context.settingsStore.edit {
+            it[KEY_PROPOSAL_JSON] = json
+            it[KEY_PROPOSAL_NOTE] = note
+        }
+    }
+
+    suspend fun clearPendingProposal() {
+        context.settingsStore.edit {
+            it.remove(KEY_PROPOSAL_JSON)
+            it.remove(KEY_PROPOSAL_NOTE)
+        }
+    }
+
+    /** Installs a new schedule without touching the stored markdown source. */
+    suspend fun setProgramJson(json: String) {
+        context.settingsStore.edit {
+            it[KEY_PROGRAM_JSON] = json
+            it[KEY_PROGRAM_UPDATED] = System.currentTimeMillis()
+        }
+    }
+
     suspend fun setAiProvider(value: String) {
         context.settingsStore.edit { it[KEY_AI_PROVIDER] = value }
     }
@@ -96,16 +134,20 @@ class SettingsRepository private constructor(private val context: Context) {
         const val INTENSITY_BEAST = "beast"
         const val PROVIDER_CLAUDE = "claude"
         const val PROVIDER_GEMINI = "gemini"
+        const val DEFAULT_THEME = "neon_night"
 
         private val KEY_OFFSET = intPreferencesKey("reminder_offset_minutes")
         private val KEY_MOTIVATION = booleanPreferencesKey("motivation_enabled")
         private val KEY_INTENSITY = stringPreferencesKey("motivation_intensity")
+        private val KEY_APP_THEME = stringPreferencesKey("app_theme")
         private val KEY_AI_PROVIDER = stringPreferencesKey("ai_provider")
         private val KEY_API_KEY = stringPreferencesKey("anthropic_api_key")
         private val KEY_GEMINI_KEY = stringPreferencesKey("gemini_api_key")
         private val KEY_PROGRAM_JSON = stringPreferencesKey("program_json")
         private val KEY_PROGRAM_MD = stringPreferencesKey("program_md")
         private val KEY_PROGRAM_UPDATED = longPreferencesKey("program_updated_at")
+        private val KEY_PROPOSAL_JSON = stringPreferencesKey("coach_proposal_json")
+        private val KEY_PROPOSAL_NOTE = stringPreferencesKey("coach_proposal_note")
 
         @Volatile
         private var instance: SettingsRepository? = null

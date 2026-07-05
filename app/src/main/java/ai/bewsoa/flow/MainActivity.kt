@@ -16,17 +16,25 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import ai.bewsoa.flow.ui.AppRoot
 import ai.bewsoa.flow.ui.theme.BewsoaFlowTheme
+import ai.bewsoa.flow.ui.theme.LocalPalette
 
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
-        )
         setContent {
             BewsoaFlowTheme {
+                // System bar icons must flip with the palette (dark icons on light themes).
+                val isLight = LocalPalette.current.isLight
+                LaunchedEffect(isLight) {
+                    val transparent = android.graphics.Color.TRANSPARENT
+                    val style = if (isLight) {
+                        SystemBarStyle.light(transparent, transparent)
+                    } else {
+                        SystemBarStyle.dark(transparent)
+                    }
+                    enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+                }
                 NotificationPermissionGate()
                 AppRoot()
             }

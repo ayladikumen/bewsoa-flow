@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationManagerCompat
 import ai.bewsoa.flow.data.ProgramRepository
+import ai.bewsoa.flow.widget.Widgets
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -24,6 +25,7 @@ class MarkDoneReceiver : BroadcastReceiver() {
                 if (notificationId != -1) {
                     NotificationManagerCompat.from(context).cancel(notificationId)
                 }
+                Widgets.refreshAll(context)
             } finally {
                 result.finish()
             }

@@ -5,4 +5,9 @@
     <string name="channel_tasks_desc">Fires after a program block ends so you log it while it\'s fresh.</string>
     <string name="channel_motivation_name">Motivation</string>
     <string name="channel_motivation_desc">Random boosts tied to your goals — Bewsoa AI, YKS, SAT, that university abroad.</string>
+    <string name="channel_coach_name">Weekly coach</string>
+    <string name="channel_coach_desc">Sunday evening: the AI coach drafts next week\'s program from your results.</string>
+    <string name="widget_desc">The block running right now, minutes left, and a one-tap Done.</string>
+    <string name="widget_progress_desc">Today\'s progress bar, done count, and what\'s next.</string>
+    <string name="widget_streak_desc">Your streak and the never-miss-twice status.</string>
 </resources>

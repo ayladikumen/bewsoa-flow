@@ -24,7 +24,9 @@ object NotificationHelper {
 
     const val CHANNEL_TASKS = "task_reminders"
     const val CHANNEL_MOTIVATION = "motivation"
+    const val CHANNEL_COACH = "coach"
     private const val MOTIVATION_ID = 7001
+    private const val COACH_ID = 7002
 
     fun createChannels(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
@@ -42,6 +44,13 @@ object NotificationHelper {
                 NotificationManager.IMPORTANCE_DEFAULT
             ).apply { description = context.getString(R.string.channel_motivation_desc) }
         )
+        manager.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_COACH,
+                context.getString(R.string.channel_coach_name),
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply { description = context.getString(R.string.channel_coach_desc) }
+        )
     }
 
     fun notificationId(date: LocalDate, taskId: String): Int =
@@ -51,6 +60,14 @@ object NotificationHelper {
         Build.VERSION.SDK_INT < 33 ||
             context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
             PackageManager.PERMISSION_GRANTED
+
+    /** The permission can be revoked between [canNotify] and posting — never crash for a toast. */
+    private fun notifySafely(context: Context, id: Int, notification: android.app.Notification) {
+        try {
+            NotificationManagerCompat.from(context).notify(id, notification)
+        } catch (_: SecurityException) {
+        }
+    }
 
     private fun openAppIntent(context: Context, requestCode: Int): PendingIntent =
         PendingIntent.getActivity(
@@ -92,8 +109,22 @@ object NotificationHelper {
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .build()
 
-        NotificationManagerCompat.from(context).notify(id, notification)
+        notifySafely(context, id, notification)
         ProgramRepository.get(context).logNotification("task", title, text)
+    }
+
+    suspend fun showCoach(context: Context, title: String, message: String) {
+        if (!canNotify(context)) return
+        val notification = NotificationCompat.Builder(context, CHANNEL_COACH)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setContentIntent(openAppIntent(context, COACH_ID))
+            .setAutoCancel(true)
+            .build()
+        notifySafely(context, COACH_ID, notification)
+        ProgramRepository.get(context).logNotification("coach", title, message)
     }
 
     suspend fun showMotivation(context: Context, title: String, message: String) {
@@ -106,7 +137,7 @@ object NotificationHelper {
             .setContentIntent(openAppIntent(context, MOTIVATION_ID))
             .setAutoCancel(true)
             .build()
-        NotificationManagerCompat.from(context).notify(MOTIVATION_ID, notification)
+        notifySafely(context, MOTIVATION_ID, notification)
         ProgramRepository.get(context).logNotification("motivation", title, message)
     }
 }
