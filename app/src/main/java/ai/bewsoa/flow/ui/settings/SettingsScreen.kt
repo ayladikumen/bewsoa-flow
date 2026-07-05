@@ -1,6 +1,9 @@
 package ai.bewsoa.flow.ui.settings
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,13 +14,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Key
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -25,10 +35,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -77,8 +91,14 @@ fun SettingsScreen(
         )
 
         GlowCard(accent = Cyan) {
-            SectionHeader("Program · update from markdown with AI")
+            SectionHeader("Program · change it with AI")
             Spacer(Modifier.height(6.dp))
+            Text(
+                ui.programName,
+                style = MaterialTheme.typography.bodyLarge,
+                color = TextBright
+            )
+            Spacer(Modifier.height(2.dp))
             Text(
                 if (ui.customActive) {
                     "AI-built program active" +
@@ -89,24 +109,24 @@ fun SettingsScreen(
                 } else {
                     "Built-in program active"
                 },
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (ui.customActive) Mint else TextBright
-            )
-            Spacer(Modifier.height(12.dp))
-            Text(
-                "Edit your weekly program below, pick an AI, and let it rebuild the app's " +
-                    "schedule from it. Blocks keep their history when they keep their place.",
                 style = MaterialTheme.typography.bodySmall,
-                color = TextDim
+                color = if (ui.customActive) Mint else TextDim
             )
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
-                value = ui.mdText,
-                onValueChange = viewModel::setMdText,
-                label = { Text("weekly_program.md") },
+                value = ui.changeText,
+                onValueChange = viewModel::setChangeText,
+                label = { Text("What do you want to change?") },
+                placeholder = {
+                    Text(
+                        "e.g. move gym to 18:00, add a run on Sunday morning",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextDim
+                    )
+                },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(240.dp),
+                    .height(110.dp),
                 textStyle = MaterialTheme.typography.bodySmall,
                 shape = RoundedCornerShape(14.dp),
                 colors = programFieldColors()
@@ -118,25 +138,10 @@ fun SettingsScreen(
                 ProviderChip("Gemini", SettingsRepository.PROVIDER_GEMINI, ui.provider, viewModel::setProvider)
             }
             Spacer(Modifier.height(10.dp))
-            OutlinedTextField(
-                value = ui.apiKey,
-                onValueChange = viewModel::setApiKey,
-                label = { Text(if (gemini) "Gemini API key" else "Anthropic API key") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                shape = RoundedCornerShape(14.dp),
-                colors = programFieldColors()
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                if (gemini) {
-                    "Stays on this phone. Get a free one at aistudio.google.com."
-                } else {
-                    "Stays on this phone. Get one at console.anthropic.com."
-                },
-                style = MaterialTheme.typography.labelSmall,
-                color = TextDim
+            ApiKeySection(
+                gemini = gemini,
+                apiKey = ui.apiKey,
+                onKeyChange = viewModel::setApiKey
             )
             if (ui.error != null) {
                 Spacer(Modifier.height(8.dp))
@@ -170,9 +175,26 @@ fun SettingsScreen(
                     )
                 } else {
                     Text(
-                        if (ui.justUpdated) "Program updated ✓" else "Rebuild program with AI",
+                        if (ui.justUpdated) "Program updated ✓" else "Update program with AI",
                         style = MaterialTheme.typography.labelLarge,
                         color = Color.White
+                    )
+                }
+            }
+            if (ui.diff != null) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "WHAT CHANGED",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Cyan
+                )
+                Spacer(Modifier.height(6.dp))
+                ui.diff!!.forEach { line ->
+                    Text(
+                        line,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextBright,
+                        modifier = Modifier.padding(vertical = 2.dp)
                     )
                 }
             }
@@ -205,6 +227,110 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = TextDim
             )
+        }
+    }
+}
+
+/**
+ * API-key credential row, styled like modern developer consoles: once a key is
+ * saved it collapses to a masked "•••• last4 · Active" row with a Change action;
+ * editing shows a field with a show/hide eye.
+ */
+@Composable
+private fun ApiKeySection(
+    gemini: Boolean,
+    apiKey: String,
+    onKeyChange: (String) -> Unit
+) {
+    var editing by remember(gemini) { mutableStateOf(false) }
+    var showKey by remember(gemini) { mutableStateOf(false) }
+    val label = if (gemini) "Gemini API key" else "Anthropic API key"
+
+    if (apiKey.isNotBlank() && !editing) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, Outline, RoundedCornerShape(14.dp))
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Rounded.Key,
+                contentDescription = null,
+                tint = Mint,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(label, style = MaterialTheme.typography.labelSmall, color = TextDim)
+                Text(
+                    "••••••••" + apiKey.trim().takeLast(4),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextBright
+                )
+            }
+            Box(
+                Modifier
+                    .size(8.dp)
+                    .background(Mint, CircleShape)
+            )
+            Spacer(Modifier.width(6.dp))
+            Text("Active", style = MaterialTheme.typography.labelSmall, color = Mint)
+            Spacer(Modifier.width(4.dp))
+            TextButton(onClick = { editing = true }) {
+                Text("Change", color = Cyan, style = MaterialTheme.typography.labelMedium)
+            }
+        }
+    } else {
+        OutlinedTextField(
+            value = apiKey,
+            onValueChange = onKeyChange,
+            label = { Text(label) },
+            placeholder = {
+                Text(
+                    if (gemini) "AIza…" else "sk-ant-…",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextDim
+                )
+            },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            visualTransformation = if (showKey) {
+                VisualTransformation.None
+            } else {
+                PasswordVisualTransformation()
+            },
+            trailingIcon = {
+                IconButton(onClick = { showKey = !showKey }) {
+                    Icon(
+                        if (showKey) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                        contentDescription = if (showKey) "Hide key" else "Show key",
+                        tint = TextDim
+                    )
+                }
+            },
+            shape = RoundedCornerShape(14.dp),
+            colors = programFieldColors()
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                if (gemini) {
+                    "Stays on this phone. Free at aistudio.google.com."
+                } else {
+                    "Stays on this phone. Get one at console.anthropic.com."
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = TextDim,
+                modifier = Modifier.weight(1f)
+            )
+            if (apiKey.isNotBlank()) {
+                TextButton(onClick = { editing = false; showKey = false }) {
+                    Text("Done", color = Cyan, style = MaterialTheme.typography.labelMedium)
+                }
+            }
         }
     }
 }
