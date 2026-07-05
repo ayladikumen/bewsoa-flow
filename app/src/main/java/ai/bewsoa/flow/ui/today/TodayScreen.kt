@@ -20,10 +20,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -76,6 +79,7 @@ fun TodayScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val tasksState by tasksViewModel.uiState.collectAsStateWithLifecycle()
+    val proposal by viewModel.proposal.collectAsStateWithLifecycle()
     var now by remember { mutableStateOf(LocalTime.now()) }
 
     LaunchedEffect(Unit) {
@@ -93,6 +97,15 @@ fun TodayScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item { TodayHeader(state) }
+        proposal?.let { pending ->
+            item {
+                CoachProposalCard(
+                    proposal = pending,
+                    onAccept = viewModel::acceptProposal,
+                    onDismiss = viewModel::dismissProposal
+                )
+            }
+        }
         item { HeroCard(state, now) }
         item { DeepWorkCard(state) }
 
@@ -139,6 +152,58 @@ fun TodayScreen(
                 onClearMessage = tasksViewModel::clearMessage
             )
         )
+    }
+}
+
+@Composable
+private fun CoachProposalCard(
+    proposal: CoachProposal,
+    onAccept: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    GlowCard(accent = Violet) {
+        Text(
+            "🧠 Your coach drafted next week",
+            style = MaterialTheme.typography.titleMedium,
+            color = TextBright
+        )
+        if (proposal.note.isNotBlank()) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                proposal.note,
+                style = MaterialTheme.typography.bodySmall,
+                color = TextDim
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "WHAT WOULD CHANGE",
+            style = MaterialTheme.typography.labelSmall,
+            color = Cyan
+        )
+        Spacer(Modifier.height(6.dp))
+        proposal.diff.forEach { line ->
+            Text(
+                line,
+                style = MaterialTheme.typography.bodySmall,
+                color = TextBright,
+                modifier = Modifier.padding(vertical = 2.dp)
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(
+                onClick = onAccept,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Violet)
+            ) {
+                Text("Accept", color = Color.White)
+            }
+            TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
+                Text("Not this week", color = TextDim)
+            }
+        }
     }
 }
 

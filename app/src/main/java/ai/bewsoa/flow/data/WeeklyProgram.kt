@@ -26,6 +26,16 @@ object WeeklyProgram {
     fun blockById(date: LocalDate, id: String): TaskBlock? =
         blocksFor(date).firstOrNull { it.id == id }
 
+    /** The active program (custom or built-in) as a per-weekday map, for diffing. */
+    fun weekMap(): Map<DayOfWeek, List<TaskBlock>> {
+        val monday = LocalDate.now().with(
+            java.time.temporal.TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)
+        )
+        return DayOfWeek.entries.associateWith { day ->
+            blocksFor(monday.plusDays((day.value - 1).toLong()))
+        }
+    }
+
     fun dayLabel(date: LocalDate): String = when {
         CustomProgram.current != null -> "My Program"
         date.dayOfWeek == DayOfWeek.SATURDAY -> "TYT Saturday"

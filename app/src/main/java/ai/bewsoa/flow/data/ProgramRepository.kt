@@ -34,6 +34,9 @@ class ProgramRepository private constructor(private val db: AppDatabase) {
     suspend fun getWeek(weekStart: LocalDate): List<TaskCompletionEntity> =
         db.completionDao().getRange(weekStart.toString(), weekStart.plusDays(6).toString())
 
+    suspend fun getRange(from: LocalDate, to: LocalDate): List<TaskCompletionEntity> =
+        db.completionDao().getRange(from.toString(), to.toString())
+
     suspend fun setDone(date: LocalDate, taskId: String, done: Boolean) {
         db.completionDao().upsert(
             TaskCompletionEntity(

@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ai.bewsoa.flow.data.DayStat
+import ai.bewsoa.flow.data.Insight
 import ai.bewsoa.flow.data.ProgramRepository
 import ai.bewsoa.flow.data.StreakInfo
 import ai.bewsoa.flow.data.Track
@@ -78,6 +79,9 @@ fun ProgressScreen(
             }
         }
         item { StreakCard(state.streak) }
+        if (state.insights.isNotEmpty()) {
+            item { InsightsCard(state.insights) }
+        }
         if (stats != null) {
             item { WeekOverviewCard(stats) }
             item { SectionHeader("Tracks this week") }
@@ -118,6 +122,41 @@ private fun streakMessage(streak: StreakInfo): String {
         else -> "Yesterday held. Cross $threshold% today to keep the chain."
     }
 }
+
+@Composable
+private fun InsightsCard(insights: List<Insight>) {
+    GlowCard(accent = Cyan) {
+        Text("Insights", style = MaterialTheme.typography.titleMedium, color = TextBright)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "What your history says",
+            style = MaterialTheme.typography.bodySmall,
+            color = TextDim
+        )
+        Spacer(Modifier.height(10.dp))
+        insights.forEach { insight ->
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Text(insight.emoji, fontSize = 16.sp)
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    insight.text,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextBright,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            if (insight !== insights.last()) Spacer(Modifier.height(8.dp))
+        }
+    }
+}
+
+private val Insight.emoji: String
+    get() = when (kind) {
+        Insight.Kind.TREND -> "📈"
+        Insight.Kind.WEAK_SPOT -> "🎯"
+        Insight.Kind.DAY_CONTRAST -> "📅"
+        Insight.Kind.OVERLOAD -> "⚖️"
+    }
 
 @Composable
 private fun WeekOverviewCard(stats: WeekStats) {

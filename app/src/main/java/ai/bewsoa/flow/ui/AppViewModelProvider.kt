@@ -18,7 +18,7 @@ object AppViewModelProvider {
     val Factory = viewModelFactory {
         initializer {
             val app = this[APPLICATION_KEY] as BewsoaFlowApp
-            TodayViewModel(ProgramRepository.get(app))
+            TodayViewModel(app, ProgramRepository.get(app))
         }
         initializer {
             val app = this[APPLICATION_KEY] as BewsoaFlowApp
