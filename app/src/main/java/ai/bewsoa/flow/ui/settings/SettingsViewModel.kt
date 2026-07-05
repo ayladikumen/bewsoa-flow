@@ -7,21 +7,19 @@ import ai.bewsoa.flow.data.AiProgramUpdater
 import ai.bewsoa.flow.data.CustomProgram
 import ai.bewsoa.flow.data.ProgramDiff
 import ai.bewsoa.flow.data.SettingsRepository
-import ai.bewsoa.flow.data.TaskBlock
 import ai.bewsoa.flow.data.WeeklyProgram
 import ai.bewsoa.flow.notifications.TaskAlarmScheduler
+import ai.bewsoa.flow.widget.Widgets
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import java.time.DayOfWeek
-import java.time.LocalDate
-import java.time.temporal.TemporalAdjusters
 
 data class ProgramUiState(
     val mdText: String = "",
     val changeText: String = "",
+    val theme: String = SettingsRepository.DEFAULT_THEME,
     val provider: String = SettingsRepository.PROVIDER_CLAUDE,
     val claudeKey: String = "",
     val geminiKey: String = "",
@@ -56,6 +54,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _ui.value = ProgramUiState(
                 mdText = settings.programMd.first() ?: loadBundledMd(),
+                theme = settings.appTheme.first(),
                 provider = settings.aiProvider.first(),
                 claudeKey = settings.apiKey.first(),
                 geminiKey = settings.geminiApiKey.first(),
@@ -72,6 +71,15 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setChangeText(value: String) {
         _ui.value = _ui.value.copy(changeText = value, justUpdated = false)
+    }
+
+    fun setTheme(id: String) {
+        _ui.value = _ui.value.copy(theme = id)
+        viewModelScope.launch {
+            settings.setAppTheme(id)
+            // Widgets paint with the app palette — retheme them too.
+            Widgets.refreshAll(getApplication())
+        }
     }
 
     fun setProvider(value: String) {
@@ -115,12 +123,13 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                 state.provider, state.apiKey.trim(), state.mdText, currentJson, state.changeText
             )
                 .onSuccess { json ->
-                    val oldProgram = CustomProgram.current ?: builtInWeek()
+                    val oldProgram = WeeklyProgram.weekMap()
                     val newProgram = CustomProgram.parse(json).getOrNull()
                     settings.setProgram(json, state.mdText)
                     CustomProgram.activate(json)
                     // Tomorrow's reminders must follow the new schedule.
                     TaskAlarmScheduler.scheduleUpcoming(getApplication())
+                    Widgets.refreshAll(getApplication())
                     _ui.value = _ui.value.copy(
                         loading = false,
                         customActive = true,
@@ -139,19 +148,12 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** The built-in schedule as a per-day map, for diffing the first AI build against. */
-    private fun builtInWeek(): Map<DayOfWeek, List<TaskBlock>> {
-        val monday = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-        return DayOfWeek.entries.associateWith { day ->
-            WeeklyProgram.blocksFor(monday.plusDays((day.value - 1).toLong()))
-        }
-    }
-
     fun resetToBuiltIn() {
         viewModelScope.launch {
             settings.clearProgram()
             CustomProgram.clear()
             TaskAlarmScheduler.scheduleUpcoming(getApplication())
+            Widgets.refreshAll(getApplication())
             _ui.value = _ui.value.copy(
                 customActive = false,
                 updatedAt = 0L,

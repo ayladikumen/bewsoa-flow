@@ -6,6 +6,7 @@ import android.content.Intent
 import ai.bewsoa.flow.data.ProgramRepository
 import ai.bewsoa.flow.data.SettingsRepository
 import ai.bewsoa.flow.data.WeeklyProgram
+import ai.bewsoa.flow.widget.Widgets
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -25,6 +26,8 @@ class TaskAlarmReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val date = LocalDate.parse(dateText)
+                // A block just ended — the widgets' "current block" moved on.
+                Widgets.refreshAll(context)
                 val block = WeeklyProgram.blockById(date, taskId) ?: return@launch
                 if (ProgramRepository.get(context).isDone(date, taskId)) return@launch
                 val offset = SettingsRepository.get(context).reminderOffsetMinutes.first()

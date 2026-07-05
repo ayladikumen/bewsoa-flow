@@ -2,6 +2,7 @@ package ai.bewsoa.flow.ui.settings
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,6 +41,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -54,6 +57,8 @@ import ai.bewsoa.flow.ui.theme.Coral
 import ai.bewsoa.flow.ui.theme.Cyan
 import ai.bewsoa.flow.ui.theme.Mint
 import ai.bewsoa.flow.ui.theme.Outline
+import ai.bewsoa.flow.ui.theme.Palette
+import ai.bewsoa.flow.ui.theme.Palettes
 import ai.bewsoa.flow.ui.theme.TextBright
 import ai.bewsoa.flow.ui.theme.TextDim
 import ai.bewsoa.flow.ui.theme.Violet
@@ -89,6 +94,21 @@ fun SettingsScreen(
             style = MaterialTheme.typography.bodySmall,
             color = TextDim
         )
+
+        GlowCard {
+            SectionHeader("Appearance")
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Palettes.all.forEach { palette ->
+                    ThemeSwatch(
+                        palette = palette,
+                        selected = ui.theme == palette.id,
+                        onSelect = { viewModel.setTheme(palette.id) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
 
         GlowCard(accent = Cyan) {
             SectionHeader("Program · change it with AI")
@@ -215,19 +235,62 @@ fun SettingsScreen(
             SectionHeader("About")
             Spacer(Modifier.height(8.dp))
             Text(
-                "Bewsoa Flow v1.1",
+                "Bewsoa Flow v1.2",
                 style = MaterialTheme.typography.bodyMedium,
                 color = TextBright
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                "The daily engine behind Bewsoa AI. Built around one weekly program: " +
-                    "YKS mornings, TYT Saturdays, SAT evenings, Exact Hour nights, gym in between — " +
-                    "and one rule: never miss twice.",
+                "The daily engine behind Bewsoa AI. One weekly program, tracked daily, " +
+                    "measured weekly — and an AI coach that redrafts next week from what " +
+                    "actually happened. One rule: never miss twice.",
                 style = MaterialTheme.typography.bodySmall,
                 color = TextDim
             )
         }
+    }
+}
+
+/** One selectable theme preview: background swatch, accent dots, name. */
+@Composable
+private fun ThemeSwatch(
+    palette: Palette,
+    selected: Boolean,
+    onSelect: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(14.dp)
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .clip(shape)
+                .background(Brush.verticalGradient(palette.backgroundGradient))
+                .border(
+                    width = if (selected) 2.dp else 1.dp,
+                    color = if (selected) palette.accent else Outline,
+                    shape = shape
+                )
+                .clickable(onClick = onSelect),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                Box(Modifier.size(10.dp).background(palette.primary, CircleShape))
+                Box(Modifier.size(10.dp).background(palette.accent, CircleShape))
+                Box(Modifier.size(10.dp).background(palette.warn, CircleShape))
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            palette.label,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (selected) TextBright else TextDim,
+            maxLines = 1
+        )
     }
 }
 
