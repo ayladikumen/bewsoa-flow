@@ -101,7 +101,7 @@ class ProgramRepository private constructor(private val db: AppDatabase) {
     // Notification history --------------------------------------------------
 
     fun observeNotificationLog(): Flow<List<NotificationLogEntity>> =
-        db.notificationLogDao().observeRecent()
+        db.notificationLogDao().observeRecent(50)
 
     suspend fun logNotification(kind: String, title: String, message: String) {
         val dao = db.notificationLogDao()

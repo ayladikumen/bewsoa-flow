@@ -32,7 +32,7 @@ interface NotificationLogDao {
     suspend fun insert(entry: NotificationLogEntity)
 
     @Query("SELECT * FROM notification_log ORDER BY timestamp DESC LIMIT :limit")
-    fun observeRecent(limit: Int = 50): Flow<List<NotificationLogEntity>>
+    fun observeRecent(limit: Int): Flow<List<NotificationLogEntity>>
 
     @Query("DELETE FROM notification_log WHERE timestamp < :cutoff")
     suspend fun pruneOlderThan(cutoff: Long)
