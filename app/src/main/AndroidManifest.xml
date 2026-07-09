@@ -26,6 +26,42 @@
         </activity>
 
         <receiver
+            android:name=".widget.FlowWidgetReceiver"
+            android:exported="true"
+            android:label="Now">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/flow_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.ProgressWidgetReceiver"
+            android:exported="true"
+            android:label="Today's progress">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/progress_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.StreakWidgetReceiver"
+            android:exported="true"
+            android:label="Streak">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/streak_widget_info" />
+        </receiver>
+
+        <receiver
             android:name=".notifications.TaskAlarmReceiver"
             android:exported="false" />
 

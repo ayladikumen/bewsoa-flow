@@ -92,13 +92,16 @@ fun ProgressRing(
         animationSpec = tween(durationMillis = 800),
         label = "ring"
     )
+    // Palette colors are composable reads — capture before the draw lambda.
+    val trackColor = Outline
+    val ringBrush = Brush.linearGradient(listOf(Violet, Cyan))
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val stroke = strokeWidth.toPx()
             val inset = stroke / 2
             val arcSize = Size(size.width - stroke, size.height - stroke)
             drawArc(
-                color = Outline.copy(alpha = 0.6f),
+                color = trackColor.copy(alpha = 0.6f),
                 startAngle = -90f,
                 sweepAngle = 360f,
                 useCenter = false,
@@ -108,7 +111,7 @@ fun ProgressRing(
             )
             if (animated > 0f) {
                 drawArc(
-                    brush = Brush.linearGradient(listOf(Violet, Cyan)),
+                    brush = ringBrush,
                     startAngle = -90f,
                     sweepAngle = 360f * animated,
                     useCenter = false,

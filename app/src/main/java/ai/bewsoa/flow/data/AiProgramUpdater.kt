@@ -42,6 +42,14 @@ object AiProgramUpdater {
 
     private const val USER_PREFIX = "Convert this weekly program to the JSON schedule:\n\n"
 
+    private const val COACH_ADDENDUM =
+        " You are now acting as the user's weekly coach. Given their current program, " +
+            "adherence insights from the last month, and their weekly review notes, propose " +
+            "next week's schedule. Make a few small evidence-based adjustments — move, " +
+            "shorten, split, or re-order blocks they repeatedly skip; protect what already " +
+            "works. Keep every unchanged block's id identical. Summarize what you changed " +
+            "and why in the coachNote field, in 2-3 encouraging sentences."
+
     private val DAYS = listOf(
         "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"
     )
@@ -92,6 +100,9 @@ object AiProgramUpdater {
     }
     """.trimIndent()
 
+    /** Next week's schedule as drafted by the coach, plus its explanation. */
+    data class Proposal(val programJson: String, val coachNote: String)
+
     /**
      * Returns the validated program JSON, ready for [CustomProgram.activate].
      *
@@ -108,27 +119,74 @@ object AiProgramUpdater {
     ): Result<String> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val userMessage = buildUserMessage(markdown, currentJson, changeRequest)
-                val programJson = if (provider == SettingsRepository.PROVIDER_GEMINI) {
-                    val response = post(
-                        GEMINI_ENDPOINT,
-                        mapOf("x-goog-api-key" to apiKey),
-                        buildGeminiBody(userMessage)
-                    )
-                    extractGeminiText(response)
-                } else {
-                    val response = post(
-                        CLAUDE_ENDPOINT,
-                        mapOf("x-api-key" to apiKey, "anthropic-version" to "2023-06-01"),
-                        buildClaudeBody(userMessage)
-                    )
-                    extractClaudeText(response)
-                }
-                // Validate before anyone stores it.
-                CustomProgram.parse(programJson).getOrThrow()
-                programJson
+                call(provider, apiKey, buildUserMessage(markdown, currentJson, changeRequest))
             }
         }
+
+    /**
+     * The weekly coach: reads the current program, the month's adherence
+     * insights, and the latest review notes, and drafts next week's schedule.
+     */
+    suspend fun proposeNextWeek(
+        provider: String,
+        apiKey: String,
+        markdown: String,
+        currentJson: String?,
+        insights: List<String>,
+        reviewNotes: String?
+    ): Result<Proposal> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val userMessage = buildString {
+                    if (currentJson != null) {
+                        append("Here is the user's current schedule JSON:\n\n")
+                        append(currentJson)
+                    } else {
+                        append("Here is the user's weekly program:\n\n")
+                        append(markdown)
+                    }
+                    append("\n\nAdherence insights from the last month:\n")
+                    if (insights.isEmpty()) {
+                        append("- No standout patterns; adherence is steady.\n")
+                    } else {
+                        insights.forEach { append("- ").append(it).append('\n') }
+                    }
+                    if (!reviewNotes.isNullOrBlank()) {
+                        append("\nFrom the user's weekly review:\n")
+                        append(reviewNotes)
+                    }
+                    append("\nPropose next week's schedule.")
+                }
+                val json = call(provider, apiKey, userMessage, coach = true)
+                Proposal(json, JSONObject(json).optString("coachNote"))
+            }
+        }
+
+    private fun call(
+        provider: String,
+        apiKey: String,
+        userMessage: String,
+        coach: Boolean = false
+    ): String {
+        val programJson = if (provider == SettingsRepository.PROVIDER_GEMINI) {
+            val response = post(
+                GEMINI_ENDPOINT,
+                mapOf("x-goog-api-key" to apiKey),
+                buildGeminiBody(userMessage, coach)
+            )
+            extractGeminiText(response)
+        } else {
+            val response = post(
+                CLAUDE_ENDPOINT,
+                mapOf("x-api-key" to apiKey, "anthropic-version" to "2023-06-01"),
+                buildClaudeBody(userMessage, coach)
+            )
+            extractClaudeText(response)
+        }
+        // Validate before anyone stores it.
+        CustomProgram.parse(programJson).getOrThrow()
+        return programJson
+    }
 
     private fun buildUserMessage(
         markdown: String,
@@ -153,18 +211,30 @@ object AiProgramUpdater {
 
     // Claude ------------------------------------------------------------------
 
-    private fun buildClaudeBody(userMessage: String): String = JSONObject()
+    /** The base schema, with the coachNote field added for coach calls. */
+    private fun claudeSchema(coach: Boolean): JSONObject = JSONObject(SCHEMA).apply {
+        if (coach) {
+            getJSONObject("properties").put("coachNote", coachNoteSchema())
+            getJSONArray("required").put("coachNote")
+        }
+    }
+
+    private fun coachNoteSchema(): JSONObject = JSONObject()
+        .put("type", "string")
+        .put("description", "2-3 sentences: what you changed and why, grounded in the insights")
+
+    private fun buildClaudeBody(userMessage: String, coach: Boolean): String = JSONObject()
         .put("model", CLAUDE_MODEL)
         .put("max_tokens", 16000)
         .put("thinking", JSONObject().put("type", "adaptive"))
-        .put("system", SYSTEM_PROMPT)
+        .put("system", if (coach) SYSTEM_PROMPT + COACH_ADDENDUM else SYSTEM_PROMPT)
         .put(
             "output_config",
             JSONObject().put(
                 "format",
                 JSONObject()
                     .put("type", "json_schema")
-                    .put("schema", JSONObject(SCHEMA))
+                    .put("schema", claudeSchema(coach))
             )
         )
         .put(
@@ -192,10 +262,18 @@ object AiProgramUpdater {
 
     // Gemini ------------------------------------------------------------------
 
-    private fun buildGeminiBody(userMessage: String): String = JSONObject()
+    private fun buildGeminiBody(userMessage: String, coach: Boolean): String = JSONObject()
         .put(
             "system_instruction",
-            JSONObject().put("parts", JSONArray().put(JSONObject().put("text", SYSTEM_PROMPT)))
+            JSONObject().put(
+                "parts",
+                JSONArray().put(
+                    JSONObject().put(
+                        "text",
+                        if (coach) SYSTEM_PROMPT + COACH_ADDENDUM else SYSTEM_PROMPT
+                    )
+                )
+            )
         )
         .put(
             "contents",
@@ -212,7 +290,7 @@ object AiProgramUpdater {
             "generationConfig",
             JSONObject()
                 .put("responseMimeType", "application/json")
-                .put("responseSchema", geminiSchema())
+                .put("responseSchema", geminiSchema(coach))
                 .put("maxOutputTokens", 16000)
                 // Straight md→JSON mapping; skip thinking so tokens go to the schedule.
                 .put("thinkingConfig", JSONObject().put("thinkingBudget", 0))
@@ -220,7 +298,7 @@ object AiProgramUpdater {
         .toString()
 
     // Gemini's responseSchema has no $ref/$defs, so the block schema is inlined per day.
-    private fun geminiSchema(): JSONObject {
+    private fun geminiSchema(coach: Boolean): JSONObject {
         fun blocks(): JSONObject {
             val block = JSONObject()
                 .put("type", "object")
@@ -254,19 +332,22 @@ object AiProgramUpdater {
 
         val dayProperties = JSONObject()
         DAYS.forEach { dayProperties.put(it, blocks()) }
+        val properties = JSONObject().put(
+            "days",
+            JSONObject()
+                .put("type", "object")
+                .put("properties", dayProperties)
+                .put("required", JSONArray(DAYS))
+        )
+        val required = JSONArray().put("days")
+        if (coach) {
+            properties.put("coachNote", coachNoteSchema())
+            required.put("coachNote")
+        }
         return JSONObject()
             .put("type", "object")
-            .put(
-                "properties",
-                JSONObject().put(
-                    "days",
-                    JSONObject()
-                        .put("type", "object")
-                        .put("properties", dayProperties)
-                        .put("required", JSONArray(DAYS))
-                )
-            )
-            .put("required", JSONArray().put("days"))
+            .put("properties", properties)
+            .put("required", required)
     }
 
     private fun extractGeminiText(response: JSONObject): String {
