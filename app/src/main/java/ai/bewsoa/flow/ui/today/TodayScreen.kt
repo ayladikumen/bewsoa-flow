@@ -148,6 +148,7 @@ fun TodayScreen(
                 onSplit = tasksViewModel::splitTask,
                 onDelete = tasksViewModel::deleteTask,
                 onMoveTomorrow = tasksViewModel::moveToTomorrow,
+                onQuadrant = tasksViewModel::cycleQuadrant,
                 onCapacity = tasksViewModel::adjustCapacity,
                 onClearMessage = tasksViewModel::clearMessage
             )
@@ -382,7 +383,7 @@ private fun DeepWorkCard(state: TodayUiState) {
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            "Focused YKS / TYT / SAT / project blocks you've logged today.",
+            "Focused YKS / TYT / SAT / project blocks plus confirmed Focus sessions today.",
             style = MaterialTheme.typography.bodySmall,
             color = TextDim
         )

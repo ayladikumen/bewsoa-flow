@@ -13,9 +13,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         WeeklyReviewEntity::class,
         NotificationLogEntity::class,
         TaskEntity::class,
-        SubtaskEntity::class
+        SubtaskEntity::class,
+        FocusSessionEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -24,6 +25,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun reviewDao(): ReviewDao
     abstract fun notificationLogDao(): NotificationLogDao
     abstract fun taskDao(): TaskDao
+    abstract fun focusDao(): FocusDao
 
     companion object {
         @Volatile
@@ -80,13 +82,39 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v4: Eisenhower axes on user tasks + the Deep Focus session log.
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE user_tasks ADD COLUMN urgent INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL(
+                    "ALTER TABLE user_tasks ADD COLUMN important INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS focus_sessions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        date TEXT NOT NULL,
+                        label TEXT NOT NULL,
+                        minutes INTEGER NOT NULL,
+                        plannedMinutes INTEGER NOT NULL,
+                        startedAt INTEGER NOT NULL,
+                        completedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "bewsoa_flow.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .build().also { instance = it }
             }
     }
 }

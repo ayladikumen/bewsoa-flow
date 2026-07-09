@@ -2,6 +2,7 @@ package ai.bewsoa.flow.ui.tasks
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,6 +63,7 @@ import ai.bewsoa.flow.ui.theme.Amber
 import ai.bewsoa.flow.ui.theme.Coral
 import ai.bewsoa.flow.ui.theme.Cyan
 import ai.bewsoa.flow.ui.theme.Mint
+import ai.bewsoa.flow.ui.theme.Muted
 import ai.bewsoa.flow.ui.theme.Outline
 import ai.bewsoa.flow.ui.theme.TextBright
 import ai.bewsoa.flow.ui.theme.TextDim
@@ -80,6 +82,7 @@ class TaskActions(
     val onSplit: (Long) -> Unit,
     val onDelete: (TaskEntity) -> Unit,
     val onMoveTomorrow: (TaskEntity) -> Unit,
+    val onQuadrant: (TaskEntity) -> Unit,
     val onCapacity: (Int) -> Unit,
     val onClearMessage: () -> Unit
 )
@@ -270,6 +273,9 @@ private fun TaskCard(
                 )
                 Spacer(Modifier.height(6.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    // Eisenhower quadrant — a tap walks Do first → Schedule → Quick → Later.
+                    val quadrant = quadrantOf(task)
+                    MiniChip(quadrant.first, quadrant.second) { actions.onQuadrant(task) }
                     if (track != null) MiniChip("${track.emoji} ${track.label}", accent)
                     if (task.reviewStage.isNotEmpty()) {
                         MiniChip("🔁 Review · ${reviewLabel(task.reviewStage)}", Violet)
@@ -373,13 +379,23 @@ private fun CardAction(
     }
 }
 
+/** Eisenhower chip label + color for a task's current quadrant. */
 @Composable
-private fun MiniChip(text: String, color: Color) {
+private fun quadrantOf(task: TaskEntity): Pair<String, Color> = when {
+    task.urgent && task.important -> "🔥 Do first" to Coral
+    task.important -> "🧭 Schedule" to Cyan
+    task.urgent -> "⚡ Quick win" to Amber
+    else -> "🌙 Later" to Muted
+}
+
+@Composable
+private fun MiniChip(text: String, color: Color, onClick: (() -> Unit)? = null) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
             .background(color.copy(alpha = 0.14f))
             .border(1.dp, color.copy(alpha = 0.4f), RoundedCornerShape(50))
+            .let { if (onClick != null) it.clickable(onClick = onClick) else it }
             .padding(horizontal = 9.dp, vertical = 4.dp)
     ) {
         Text(text, style = MaterialTheme.typography.labelSmall, color = TextBright)

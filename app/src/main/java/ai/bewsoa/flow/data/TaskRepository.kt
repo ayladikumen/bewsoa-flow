@@ -69,7 +69,9 @@ class TaskRepository private constructor(
                         estimatedMinutes = parsed.estimatedMinutes,
                         createdAt = System.currentTimeMillis(),
                         sortOrder = dao.maxSortOrder(date.toString()) + 1,
-                        needsReview = parsed.needsReview
+                        needsReview = parsed.needsReview,
+                        urgent = parsed.urgent,
+                        important = parsed.important
                     )
                 )
                 if (parsed.subtasks.isNotEmpty()) dao.insertSubtasks(subtasksFor(id, parsed.subtasks))
@@ -101,6 +103,11 @@ class TaskRepository private constructor(
 
     suspend fun setSubtaskDone(subtask: SubtaskEntity, done: Boolean) {
         dao.updateSubtask(subtask.copy(done = done))
+    }
+
+    /** Eisenhower: reclassify by hand — the AI's guess is only a starting point. */
+    suspend fun setQuadrant(task: TaskEntity, urgent: Boolean, important: Boolean) {
+        dao.updateTask(task.copy(urgent = urgent, important = important))
     }
 
     suspend fun deleteTask(task: TaskEntity) {
@@ -142,7 +149,10 @@ class TaskRepository private constructor(
                 createdAt = System.currentTimeMillis(),
                 needsReview = false,
                 reviewParentId = task.id,
-                reviewStage = label
+                reviewStage = label,
+                // Reviewing important material is important; the clock resets, so not urgent.
+                urgent = false,
+                important = task.important
             )
         }
         dao.insertTasks(reviews)

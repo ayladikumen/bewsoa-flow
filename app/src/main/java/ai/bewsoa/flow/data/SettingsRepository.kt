@@ -33,6 +33,33 @@ class SettingsRepository private constructor(private val context: Context) {
         context.settingsStore.edit { it[KEY_CAPACITY] = minutes.coerceIn(60, 16 * 60) }
     }
 
+    // Active Deep Focus session — persisted so the countdown survives app restarts.
+
+    val focusLabel: Flow<String?> =
+        context.settingsStore.data.map { it[KEY_FOCUS_LABEL] }
+
+    val focusStartedAt: Flow<Long> =
+        context.settingsStore.data.map { it[KEY_FOCUS_STARTED] ?: 0L }
+
+    val focusDurationMinutes: Flow<Int> =
+        context.settingsStore.data.map { it[KEY_FOCUS_MINUTES] ?: 0 }
+
+    suspend fun setFocusSession(label: String, startedAt: Long, minutes: Int) {
+        context.settingsStore.edit {
+            it[KEY_FOCUS_LABEL] = label
+            it[KEY_FOCUS_STARTED] = startedAt
+            it[KEY_FOCUS_MINUTES] = minutes
+        }
+    }
+
+    suspend fun clearFocusSession() {
+        context.settingsStore.edit {
+            it.remove(KEY_FOCUS_LABEL)
+            it.remove(KEY_FOCUS_STARTED)
+            it.remove(KEY_FOCUS_MINUTES)
+        }
+    }
+
     /** Palette id from ui/theme/Palettes; also read by the widgets. */
     val appTheme: Flow<String> =
         context.settingsStore.data.map { it[KEY_APP_THEME] ?: DEFAULT_THEME }
@@ -151,6 +178,9 @@ class SettingsRepository private constructor(private val context: Context) {
         private val KEY_MOTIVATION = booleanPreferencesKey("motivation_enabled")
         private val KEY_INTENSITY = stringPreferencesKey("motivation_intensity")
         private val KEY_APP_THEME = stringPreferencesKey("app_theme")
+        private val KEY_FOCUS_LABEL = stringPreferencesKey("focus_label")
+        private val KEY_FOCUS_STARTED = longPreferencesKey("focus_started_at")
+        private val KEY_FOCUS_MINUTES = intPreferencesKey("focus_duration_minutes")
         private val KEY_AI_PROVIDER = stringPreferencesKey("ai_provider")
         private val KEY_API_KEY = stringPreferencesKey("anthropic_api_key")
         private val KEY_GEMINI_KEY = stringPreferencesKey("gemini_api_key")

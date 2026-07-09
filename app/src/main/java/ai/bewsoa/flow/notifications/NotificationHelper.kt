@@ -27,6 +27,7 @@ object NotificationHelper {
     const val CHANNEL_COACH = "coach"
     private const val MOTIVATION_ID = 7001
     private const val COACH_ID = 7002
+    private const val FOCUS_ID = 7003
 
     fun createChannels(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
@@ -111,6 +112,24 @@ object NotificationHelper {
 
         notifySafely(context, id, notification)
         ProgramRepository.get(context).logNotification("task", title, text)
+    }
+
+    /** The Deep Focus countdown just ran out — ask for the verdict in the app. */
+    suspend fun showFocusEnd(context: Context, label: String) {
+        if (!canNotify(context)) return
+        val title = "🧠 Focus time is up"
+        val text = "\"$label\" — did you finish? Open the app to log it."
+        val notification = NotificationCompat.Builder(context, CHANNEL_TASKS)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setContentIntent(openAppIntent(context, FOCUS_ID))
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .build()
+        notifySafely(context, FOCUS_ID, notification)
+        ProgramRepository.get(context).logNotification("focus", title, text)
     }
 
     suspend fun showCoach(context: Context, title: String, message: String) {

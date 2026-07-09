@@ -3,6 +3,7 @@ package ai.bewsoa.flow.ui
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material.icons.rounded.CenterFocusStrong
 import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.Notifications
@@ -26,6 +27,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import ai.bewsoa.flow.ui.alerts.AlertsScreen
 import ai.bewsoa.flow.ui.components.GradientBackground
+import ai.bewsoa.flow.ui.focus.FocusScreen
 import ai.bewsoa.flow.ui.progress.ProgressScreen
 import ai.bewsoa.flow.ui.review.ReviewScreen
 import ai.bewsoa.flow.ui.settings.SettingsScreen
@@ -37,9 +39,11 @@ import ai.bewsoa.flow.ui.today.TodayScreen
 
 private data class Dest(val route: String, val label: String, val icon: ImageVector)
 
+// Focus sits mid-bar on purpose: the "start deep work" button lives at the center.
 private val destinations = listOf(
     Dest("today", "Today", Icons.Rounded.Bolt),
     Dest("progress", "Progress", Icons.Rounded.Insights),
+    Dest("focus", "Focus", Icons.Rounded.CenterFocusStrong),
     Dest("review", "Review", Icons.Rounded.EditNote),
     Dest("alerts", "Alerts", Icons.Rounded.Notifications),
     Dest("settings", "Settings", Icons.Rounded.Settings)
@@ -60,6 +64,7 @@ fun AppRoot() {
             ) {
                 composable("today") { TodayScreen() }
                 composable("progress") { ProgressScreen() }
+                composable("focus") { FocusScreen() }
                 composable("review") { ReviewScreen() }
                 composable("alerts") { AlertsScreen() }
                 composable("settings") { SettingsScreen() }
