@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -46,7 +47,11 @@ import ai.bewsoa.flow.ui.components.ProgressRing
 import ai.bewsoa.flow.ui.components.SectionHeader
 import ai.bewsoa.flow.ui.components.StatBar
 import ai.bewsoa.flow.ui.formatCountdown
+import ai.bewsoa.flow.ui.formatHours
 import ai.bewsoa.flow.ui.formatTime
+import ai.bewsoa.flow.ui.tasks.TaskActions
+import ai.bewsoa.flow.ui.tasks.TasksViewModel
+import ai.bewsoa.flow.ui.tasks.tasksSection
 import ai.bewsoa.flow.ui.theme.Amber
 import ai.bewsoa.flow.ui.theme.Coral
 import ai.bewsoa.flow.ui.theme.Cyan
@@ -66,15 +71,18 @@ private val headerDate = DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.US)
 
 @Composable
 fun TodayScreen(
-    viewModel: TodayViewModel = viewModel(factory = AppViewModelProvider.Factory)
+    viewModel: TodayViewModel = viewModel(factory = AppViewModelProvider.Factory),
+    tasksViewModel: TasksViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val tasksState by tasksViewModel.uiState.collectAsStateWithLifecycle()
     var now by remember { mutableStateOf(LocalTime.now()) }
 
     LaunchedEffect(Unit) {
         while (true) {
             now = LocalTime.now()
             viewModel.onTick()
+            tasksViewModel.onTick()
             delay(1_000L)
         }
     }
@@ -86,6 +94,27 @@ fun TodayScreen(
     ) {
         item { TodayHeader(state) }
         item { HeroCard(state, now) }
+        item { DeepWorkCard(state) }
+
+        val todayMissed = state.blocks.filter {
+            !it.done && it.block.counted && now >= it.block.end
+        }
+        if (todayMissed.isNotEmpty() || state.yesterdayMissed.isNotEmpty()) {
+            item { SectionHeader("Catch up") }
+            if (todayMissed.isNotEmpty()) {
+                item { CatchUpLabel("Today · ended, not logged") }
+                items(todayMissed, key = { "miss_t_${it.block.id}" }) { item ->
+                    CatchUpRow(item) { viewModel.setDone(item.block.id, true) }
+                }
+            }
+            if (state.yesterdayMissed.isNotEmpty()) {
+                item { CatchUpLabel("Yesterday") }
+                items(state.yesterdayMissed, key = { "miss_y_${it.block.id}" }) { item ->
+                    CatchUpRow(item) { viewModel.setYesterdayDone(item.block.id, true) }
+                }
+            }
+        }
+
         item { SectionHeader("Today's blocks") }
         items(state.blocks, key = { it.block.id }) { item ->
             BlockCard(
@@ -94,6 +123,22 @@ fun TodayScreen(
                 onToggle = { viewModel.setDone(item.block.id, !item.done) }
             )
         }
+        item { Spacer(Modifier.height(4.dp)) }
+        item { SectionHeader("My tasks") }
+        tasksSection(
+            state = tasksState,
+            actions = TaskActions(
+                onQuickAdd = tasksViewModel::addQuick,
+                onAiAdd = tasksViewModel::addWithAi,
+                onToggleTask = tasksViewModel::toggleTask,
+                onToggleSubtask = tasksViewModel::toggleSubtask,
+                onSplit = tasksViewModel::splitTask,
+                onDelete = tasksViewModel::deleteTask,
+                onMoveTomorrow = tasksViewModel::moveToTomorrow,
+                onCapacity = tasksViewModel::adjustCapacity,
+                onClearMessage = tasksViewModel::clearMessage
+            )
+        )
     }
 }
 
@@ -230,6 +275,91 @@ private fun HeroCard(state: TodayUiState, now: LocalTime) {
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+private const val DEEP_WORK_GOAL_MIN = 360 // 6h — a soft daily reference, not a rule.
+
+@Composable
+private fun DeepWorkCard(state: TodayUiState) {
+    GlowCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    "DEEP WORK TODAY",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Cyan,
+                    letterSpacing = 1.5.sp
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    if (state.deepWorkMinutes == 0) "0m" else formatHours(state.deepWorkMinutes.toLong()),
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = TextBright
+                )
+            }
+            Text(
+                "goal ${formatHours(DEEP_WORK_GOAL_MIN.toLong())}",
+                style = MaterialTheme.typography.labelMedium,
+                color = TextDim
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        StatBar(
+            ratio = state.deepWorkMinutes.toFloat() / DEEP_WORK_GOAL_MIN,
+            color = Cyan
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "Focused YKS / TYT / SAT / project blocks you've logged today.",
+            style = MaterialTheme.typography.bodySmall,
+            color = TextDim
+        )
+    }
+}
+
+@Composable
+private fun CatchUpLabel(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelMedium,
+        color = TextDim
+    )
+}
+
+@Composable
+private fun CatchUpRow(item: BlockWithStatus, onLog: () -> Unit) {
+    val block = item.block
+    GlowCard(accent = Coral) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "${block.track.emoji} ${block.title}",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = TextBright,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "${formatTime(block.start)}–${formatTime(block.end)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextDim
+                )
+            }
+            IconButton(onClick = onLog) {
+                Icon(
+                    imageVector = Icons.Rounded.RadioButtonUnchecked,
+                    contentDescription = "Log as done",
+                    tint = Coral,
+                    modifier = Modifier.size(28.dp)
+                )
             }
         }
     }

@@ -5,10 +5,13 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import ai.bewsoa.flow.BewsoaFlowApp
 import ai.bewsoa.flow.data.ProgramRepository
+import ai.bewsoa.flow.data.SettingsRepository
+import ai.bewsoa.flow.data.TaskRepository
 import ai.bewsoa.flow.ui.alerts.AlertsViewModel
 import ai.bewsoa.flow.ui.progress.ProgressViewModel
 import ai.bewsoa.flow.ui.review.ReviewViewModel
 import ai.bewsoa.flow.ui.settings.SettingsViewModel
+import ai.bewsoa.flow.ui.tasks.TasksViewModel
 import ai.bewsoa.flow.ui.today.TodayViewModel
 
 object AppViewModelProvider {
@@ -16,6 +19,10 @@ object AppViewModelProvider {
         initializer {
             val app = this[APPLICATION_KEY] as BewsoaFlowApp
             TodayViewModel(ProgramRepository.get(app))
+        }
+        initializer {
+            val app = this[APPLICATION_KEY] as BewsoaFlowApp
+            TasksViewModel(TaskRepository.get(app), SettingsRepository.get(app))
         }
         initializer {
             val app = this[APPLICATION_KEY] as BewsoaFlowApp

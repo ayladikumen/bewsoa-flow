@@ -24,6 +24,15 @@ class SettingsRepository private constructor(private val context: Context) {
     val motivationIntensity: Flow<String> =
         context.settingsStore.data.map { it[KEY_INTENSITY] ?: INTENSITY_NORMAL }
 
+    /** Minutes of task work the user considers a full day — the capacity ceiling for
+     *  the Parkinson's-law warning on the Today task list. */
+    val dailyCapacityMinutes: Flow<Int> =
+        context.settingsStore.data.map { it[KEY_CAPACITY] ?: DEFAULT_CAPACITY }
+
+    suspend fun setDailyCapacityMinutes(minutes: Int) {
+        context.settingsStore.edit { it[KEY_CAPACITY] = minutes.coerceIn(60, 16 * 60) }
+    }
+
     suspend fun setReminderOffset(minutes: Int) {
         context.settingsStore.edit { it[KEY_OFFSET] = minutes.coerceIn(0, 60) }
     }
@@ -91,6 +100,7 @@ class SettingsRepository private constructor(private val context: Context) {
 
     companion object {
         const val DEFAULT_OFFSET = 20
+        const val DEFAULT_CAPACITY = 480
         const val INTENSITY_CHILL = "chill"
         const val INTENSITY_NORMAL = "normal"
         const val INTENSITY_BEAST = "beast"
@@ -98,6 +108,7 @@ class SettingsRepository private constructor(private val context: Context) {
         const val PROVIDER_GEMINI = "gemini"
 
         private val KEY_OFFSET = intPreferencesKey("reminder_offset_minutes")
+        private val KEY_CAPACITY = intPreferencesKey("daily_capacity_minutes")
         private val KEY_MOTIVATION = booleanPreferencesKey("motivation_enabled")
         private val KEY_INTENSITY = stringPreferencesKey("motivation_intensity")
         private val KEY_AI_PROVIDER = stringPreferencesKey("ai_provider")
