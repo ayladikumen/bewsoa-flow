@@ -114,7 +114,7 @@ private fun TaskComposer(state: TasksUiState, actions: TaskActions) {
             modifier = Modifier.fillMaxWidth(),
             placeholder = {
                 Text(
-                    "What do you need to do? e.g. solve 3 derivative tests tomorrow evening",
+                    "Add a task — plain words work",
                     style = MaterialTheme.typography.bodyMedium
                 )
             },
@@ -174,14 +174,10 @@ private fun TaskComposer(state: TasksUiState, actions: TaskActions) {
                 }
             }
         }
-        val hint = when {
-            state.message != null -> state.message to Coral
-            !state.aiAvailable -> "Add an API key in Settings to let AI schedule, size and split your tasks." to TextDim
-            else -> null
-        }
-        if (hint != null) {
+        // Only surface problems here — how-it-works text lives in the Guide.
+        if (state.message != null) {
             Spacer(Modifier.height(8.dp))
-            Text(hint.first, style = MaterialTheme.typography.bodySmall, color = hint.second)
+            Text(state.message, style = MaterialTheme.typography.bodySmall, color = Coral)
         }
     }
 }
@@ -229,13 +225,16 @@ private fun CapacityMeter(state: TasksUiState, onCapacity: (Int) -> Unit) {
             ratio = state.capacityRatio,
             color = if (state.overCapacity) Coral else Mint
         )
-        Spacer(Modifier.height(6.dp))
-        val (msg, tint) = if (state.overCapacity) {
-            "Over your ${formatHours(capacity.toLong())} by ${formatHours((planned - capacity).toLong())} — trim or move a task." to Coral
-        } else {
-            "${formatHours((capacity - planned).toLong())} of focus time left today." to TextDim
+        // Quiet when things fit; only the overload warning earns a line.
+        if (state.overCapacity) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Over your ${formatHours(capacity.toLong())} by " +
+                    "${formatHours((planned - capacity).toLong())} — trim or move a task.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Coral
+            )
         }
-        Text(msg, style = MaterialTheme.typography.bodySmall, color = tint)
     }
 }
 
@@ -404,21 +403,11 @@ private fun MiniChip(text: String, color: Color, onClick: (() -> Unit)? = null) 
 
 @Composable
 private fun EmptyHint() {
-    GlowCard {
-        Text(
-            "No tasks yet",
-            style = MaterialTheme.typography.titleSmall,
-            color = TextBright
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            "Jot down what you actually need to do — the routine above is your time skeleton, " +
-                "these are the jobs. AI can size them, split them and schedule reviews. " +
-                "Nothing here dents your streak: slide a task to tomorrow whenever you need to.",
-            style = MaterialTheme.typography.bodySmall,
-            color = TextDim
-        )
-    }
+    Text(
+        "No tasks yet — the routine above is the skeleton, write the actual jobs here.",
+        style = MaterialTheme.typography.bodySmall,
+        color = TextDim
+    )
 }
 
 private fun reviewLabel(stage: String): String = when (stage) {

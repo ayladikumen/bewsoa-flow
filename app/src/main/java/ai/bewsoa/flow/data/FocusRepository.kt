@@ -4,6 +4,7 @@ import android.content.Context
 import ai.bewsoa.flow.data.db.AppDatabase
 import ai.bewsoa.flow.data.db.FocusSessionEntity
 import ai.bewsoa.flow.notifications.FocusAlarmReceiver
+import ai.bewsoa.flow.notifications.NotificationHelper
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
@@ -46,13 +47,18 @@ class FocusRepository private constructor(
     fun observeRange(from: LocalDate, to: LocalDate): Flow<List<FocusSessionEntity>> =
         db.focusDao().observeRange(from.toString(), to.toString())
 
-    /** Commit: write the session down and arm the "time's up" alarm. */
+    /**
+     * Commit: write the session down, arm the "time's up" alarm, and pin a live
+     * countdown to the notification shade.
+     */
     suspend fun start(label: String, minutes: Int) {
         val clean = label.trim().ifEmpty { "Deep focus" }
         val safeMinutes = minutes.coerceIn(5, 4 * 60)
         val startedAt = System.currentTimeMillis()
+        val endsAt = startedAt + safeMinutes * 60_000L
         settings.setFocusSession(clean, startedAt, safeMinutes)
-        FocusAlarmReceiver.schedule(context, clean, startedAt + safeMinutes * 60_000L)
+        FocusAlarmReceiver.schedule(context, clean, endsAt)
+        NotificationHelper.showFocusRunning(context, clean, endsAt)
     }
 
     /**
@@ -81,6 +87,7 @@ class FocusRepository private constructor(
     private suspend fun clear() {
         settings.clearFocusSession()
         FocusAlarmReceiver.cancel(context)
+        NotificationHelper.cancelFocusRunning(context)
     }
 
     companion object {

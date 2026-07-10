@@ -13,8 +13,8 @@ android {
         applicationId = "ai.bewsoa.flow"
         minSdk = 26
         targetSdk = 34
-        versionCode = 4
-        versionName = "1.3.0"
+        versionCode = 5
+        versionName = "1.4.0"
     }
 
     buildTypes {
@@ -54,6 +54,9 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
+
+    // Long-press drag-to-reorder for the Today block list.
+    implementation("sh.calvin.reorderable:reorderable:2.4.3")
 
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.6")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6")

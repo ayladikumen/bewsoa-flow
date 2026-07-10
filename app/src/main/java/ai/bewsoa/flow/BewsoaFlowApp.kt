@@ -2,6 +2,7 @@ package ai.bewsoa.flow
 
 import android.app.Application
 import ai.bewsoa.flow.data.CustomProgram
+import ai.bewsoa.flow.data.DayBlockOrder
 import ai.bewsoa.flow.data.SettingsRepository
 import ai.bewsoa.flow.notifications.CoachWorker
 import ai.bewsoa.flow.notifications.MotivationWorker
@@ -27,6 +28,7 @@ class BewsoaFlowApp : Application() {
         runBlocking {
             val settings = SettingsRepository.get(this@BewsoaFlowApp)
             settings.programJson.first()?.let { json -> CustomProgram.activate(json) }
+            DayBlockOrder.load(settings.dayOrderJson.first())
             ThemeCache.initialId = settings.appTheme.first()
         }
         NotificationHelper.createChannels(this)

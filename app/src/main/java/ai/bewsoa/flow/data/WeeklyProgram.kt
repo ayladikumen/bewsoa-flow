@@ -13,9 +13,12 @@ import java.time.LocalTime
  */
 object WeeklyProgram {
 
-    fun blocksFor(date: LocalDate): List<TaskBlock> =
-        CustomProgram.current?.get(date.dayOfWeek)?.takeIf { it.isNotEmpty() }
+    fun blocksFor(date: LocalDate): List<TaskBlock> {
+        val base = CustomProgram.current?.get(date.dayOfWeek)?.takeIf { it.isNotEmpty() }
             ?: builtIn(date)
+        // A drag on Today may have re-slotted this date's blocks.
+        return DayBlockOrder.applyTo(base, date)
+    }
 
     private fun builtIn(date: LocalDate): List<TaskBlock> = when (date.dayOfWeek) {
         DayOfWeek.SATURDAY -> saturday

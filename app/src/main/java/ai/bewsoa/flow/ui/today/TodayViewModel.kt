@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import ai.bewsoa.flow.data.CustomProgram
+import ai.bewsoa.flow.data.DayBlockOrder
 import ai.bewsoa.flow.data.FocusRepository
 import ai.bewsoa.flow.data.ProgramDiff
 import ai.bewsoa.flow.data.ProgramRepository
@@ -87,7 +88,11 @@ class TodayViewModel(
         viewModelScope.launch { settings.clearPendingProposal() }
     }
 
-    val uiState: StateFlow<TodayUiState> = combine(date, CustomProgram.version) { day, _ -> day }
+    val uiState: StateFlow<TodayUiState> = combine(
+        date,
+        CustomProgram.version,
+        DayBlockOrder.version
+    ) { day, _, _ -> day }
         .flatMapLatest { day ->
             val yesterday = day.minusDays(1)
             combine(
@@ -146,6 +151,18 @@ class TodayViewModel(
     fun setYesterdayDone(taskId: String, done: Boolean) {
         viewModelScope.launch {
             repo.setDone(date.value.minusDays(1), taskId, done)
+            Widgets.refreshAll(getApplication())
+        }
+    }
+
+    /**
+     * A drag on the block list ended — persist today's new slot assignment and
+     * re-aim everything that depends on block times (reminders, widgets).
+     */
+    fun commitBlockOrder(idsInSlotOrder: List<String>) {
+        viewModelScope.launch {
+            DayBlockOrder.set(getApplication(), date.value, idsInSlotOrder)
+            TaskAlarmScheduler.scheduleUpcoming(getApplication())
             Widgets.refreshAll(getApplication())
         }
     }

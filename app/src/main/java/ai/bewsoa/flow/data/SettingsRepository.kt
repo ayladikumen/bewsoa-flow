@@ -33,6 +33,22 @@ class SettingsRepository private constructor(private val context: Context) {
         context.settingsStore.edit { it[KEY_CAPACITY] = minutes.coerceIn(60, 16 * 60) }
     }
 
+    /** JSON map date → block-id order, backing [DayBlockOrder]. */
+    val dayOrderJson: Flow<String?> =
+        context.settingsStore.data.map { it[KEY_DAY_ORDER] }
+
+    suspend fun setDayOrderJson(json: String) {
+        context.settingsStore.edit { it[KEY_DAY_ORDER] = json }
+    }
+
+    /** Last versionCode whose "What's new" the user has dismissed. */
+    val seenVersionCode: Flow<Int> =
+        context.settingsStore.data.map { it[KEY_SEEN_VERSION] ?: 0 }
+
+    suspend fun setSeenVersionCode(version: Int) {
+        context.settingsStore.edit { it[KEY_SEEN_VERSION] = version }
+    }
+
     // Active Deep Focus session — persisted so the countdown survives app restarts.
 
     val focusLabel: Flow<String?> =
@@ -178,6 +194,8 @@ class SettingsRepository private constructor(private val context: Context) {
         private val KEY_MOTIVATION = booleanPreferencesKey("motivation_enabled")
         private val KEY_INTENSITY = stringPreferencesKey("motivation_intensity")
         private val KEY_APP_THEME = stringPreferencesKey("app_theme")
+        private val KEY_DAY_ORDER = stringPreferencesKey("day_block_order")
+        private val KEY_SEEN_VERSION = intPreferencesKey("seen_version_code")
         private val KEY_FOCUS_LABEL = stringPreferencesKey("focus_label")
         private val KEY_FOCUS_STARTED = longPreferencesKey("focus_started_at")
         private val KEY_FOCUS_MINUTES = intPreferencesKey("focus_duration_minutes")

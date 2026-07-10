@@ -72,7 +72,8 @@ private val updatedStamp = DateTimeFormatter.ofPattern("MMM d, HH:mm", Locale.US
 
 @Composable
 fun SettingsScreen(
-    viewModel: SettingsViewModel = viewModel(factory = AppViewModelProvider.Factory)
+    viewModel: SettingsViewModel = viewModel(factory = AppViewModelProvider.Factory),
+    onOpenGuide: () -> Unit = {}
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
 
@@ -94,6 +95,29 @@ fun SettingsScreen(
             style = MaterialTheme.typography.bodySmall,
             color = TextDim
         )
+
+        GlowCard(modifier = Modifier.clickable(onClick = onOpenGuide), accent = Violet) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "📖 Guide & what's new",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = TextBright
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "Every feature and every update, explained in one place.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextDim
+                    )
+                }
+                Text("→", style = MaterialTheme.typography.titleMedium, color = Violet)
+            }
+        }
 
         GlowCard {
             SectionHeader("Appearance")
@@ -235,7 +259,7 @@ fun SettingsScreen(
             SectionHeader("About")
             Spacer(Modifier.height(8.dp))
             Text(
-                "Bewsoa Flow v1.2",
+                "Bewsoa Flow v1.4",
                 style = MaterialTheme.typography.bodyMedium,
                 color = TextBright
             )

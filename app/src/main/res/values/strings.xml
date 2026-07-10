@@ -7,6 +7,8 @@
     <string name="channel_motivation_desc">Random boosts tied to your goals — Bewsoa AI, YKS, SAT, that university abroad.</string>
     <string name="channel_coach_name">Weekly coach</string>
     <string name="channel_coach_desc">Sunday evening: the AI coach drafts next week\'s program from your results.</string>
+    <string name="channel_focus_name">Focus timer</string>
+    <string name="channel_focus_desc">Silent live countdown while a Deep Focus session runs.</string>
     <string name="widget_desc">The block running right now, minutes left, and a one-tap Done.</string>
     <string name="widget_progress_desc">Today\'s progress bar, done count, and what\'s next.</string>
     <string name="widget_streak_desc">Your streak and the never-miss-twice status.</string>

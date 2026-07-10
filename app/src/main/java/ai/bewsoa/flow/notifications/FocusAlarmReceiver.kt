@@ -22,6 +22,8 @@ class FocusAlarmReceiver : BroadcastReceiver() {
         val result = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
+                // The alert replaces the live countdown.
+                NotificationHelper.cancelFocusRunning(context)
                 NotificationHelper.showFocusEnd(context, label)
             } finally {
                 result.finish()
