@@ -63,7 +63,10 @@ class TasksViewModel(
         val (day, tasks) = dayTasks
         TasksUiState(
             date = day,
-            tasks = tasks,
+            // Eisenhower order inside the open/done groups; ties keep the DAO's order.
+            tasks = tasks.sortedWith(
+                compareBy({ it.task.done }, { quadrantRank(it.task) })
+            ),
             plannedMinutes = tasks.sumOf { it.task.estimatedMinutes },
             capacityMinutes = capacity,
             aiAvailable = ai,
@@ -125,6 +128,17 @@ class TasksViewModel(
         viewModelScope.launch { repo.deleteTask(task) }
     }
 
+    /** Walks the Eisenhower quadrants: Do first → Schedule → Quick win → Later. */
+    fun cycleQuadrant(task: TaskEntity) {
+        val (urgent, important) = when {
+            task.urgent && task.important -> false to true // Do first  -> Schedule
+            task.important -> true to false                // Schedule  -> Quick win
+            task.urgent -> false to false                  // Quick win -> Later
+            else -> true to true                           // Later     -> Do first
+        }
+        viewModelScope.launch { repo.setQuadrant(task, urgent, important) }
+    }
+
     fun moveToTomorrow(task: TaskEntity) {
         viewModelScope.launch { repo.moveToTomorrow(task) }
     }
@@ -141,4 +155,14 @@ class TasksViewModel(
 
     private fun Result<Unit>.errorMessage(): String? =
         exceptionOrNull()?.let { it.message ?: "Something went wrong." }
+
+    companion object {
+        /** Q1 do-first, Q2 schedule, Q3 quick win, Q4 later. */
+        private fun quadrantRank(task: TaskEntity): Int = when {
+            task.urgent && task.important -> 0
+            task.important -> 1
+            task.urgent -> 2
+            else -> 3
+        }
+    }
 }

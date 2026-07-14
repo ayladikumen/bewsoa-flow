@@ -66,6 +66,10 @@
             android:exported="false" />
 
         <receiver
+            android:name=".notifications.FocusAlarmReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".notifications.MarkDoneReceiver"
             android:exported="false" />
 

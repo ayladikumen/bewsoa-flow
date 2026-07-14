@@ -14,11 +14,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         NotificationLogEntity::class,
         TaskEntity::class,
         SubtaskEntity::class,
+        FocusSessionEntity::class,
         XpEventEntity::class,
         StreakFreezeEntity::class,
         ChatMessageEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -27,6 +28,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun reviewDao(): ReviewDao
     abstract fun notificationLogDao(): NotificationLogDao
     abstract fun taskDao(): TaskDao
+    abstract fun focusDao(): FocusDao
     abstract fun xpDao(): XpDao
     abstract fun streakFreezeDao(): StreakFreezeDao
     abstract fun chatDao(): ChatDao
@@ -86,26 +88,123 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v4: Eisenhower axes on user tasks + the Deep Focus session log.
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE user_tasks ADD COLUMN urgent INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL(
+                    "ALTER TABLE user_tasks ADD COLUMN important INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS focus_sessions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        date TEXT NOT NULL,
+                        label TEXT NOT NULL,
+                        minutes INTEGER NOT NULL,
+                        plannedMinutes INTEGER NOT NULL,
+                        startedAt INTEGER NOT NULL,
+                        completedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         /**
-         * v4 rewrote task_completions (done: Boolean → state: String) and added
-         * the XP, freeze, focus and chat tables.
+         * v5: the excused-skip rewrite plus the XP economy.
          *
-         * There is deliberately no MIGRATION_3_4. v4 is a clean break: upgrading
-         * from v1.2 DROPS all completion history, streaks, tasks and reviews.
-         * That is a decision, not an oversight — Settings → Your data exports
-         * everything first, and that is the only way to keep any of it.
+         * task_completions.done (Boolean) becomes .state (String), because a
+         * block now has three outcomes, not two — PENDING, DONE and SKIPPED.
+         * SQLite can't retype a column in place, so the table is rebuilt and
+         * copied across; every existing row maps to DONE or PENDING, and no
+         * history is lost.
+         *
+         * Index names here must match what Room generates
+         * (index_<table>_<col>_<col>) or validation throws at open.
          */
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS task_completions_new (
+                        date TEXT NOT NULL,
+                        taskId TEXT NOT NULL,
+                        state TEXT NOT NULL,
+                        completedAt INTEGER,
+                        skipReason TEXT,
+                        PRIMARY KEY(date, taskId)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO task_completions_new (date, taskId, state, completedAt, skipReason)
+                    SELECT date, taskId,
+                           CASE WHEN done = 1 THEN 'DONE' ELSE 'PENDING' END,
+                           completedAt, NULL
+                    FROM task_completions
+                    """.trimIndent()
+                )
+                db.execSQL("DROP TABLE task_completions")
+                db.execSQL("ALTER TABLE task_completions_new RENAME TO task_completions")
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS xp_events (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        date TEXT NOT NULL,
+                        ts INTEGER NOT NULL,
+                        kind TEXT NOT NULL,
+                        refId TEXT NOT NULL,
+                        amount INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_xp_events_date ON xp_events (date)")
+                // The idempotency guarantee: one award per (kind, refId, date).
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_xp_events_kind_refId_date " +
+                        "ON xp_events (kind, refId, date)"
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS streak_freezes (
+                        usedForDate TEXT PRIMARY KEY NOT NULL,
+                        usedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS chat_messages (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        ts INTEGER NOT NULL,
+                        role TEXT NOT NULL,
+                        text TEXT NOT NULL,
+                        cardType TEXT,
+                        cardJson TEXT,
+                        toolCallsJson TEXT,
+                        status TEXT NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_chat_messages_ts ON chat_messages (ts)")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "bewsoa_flow.db"
-                )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
-                    .fallbackToDestructiveMigration()
-                    .build()
-                    .also { instance = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .build().also { instance = it }
             }
     }
 }

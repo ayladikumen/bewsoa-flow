@@ -21,6 +21,9 @@ import androidx.room.Relation
  *        it reviews; null on originals. Used to avoid spawning reviews of reviews.
  * @param reviewStage human label of the review interval ("1d", "3d", "1w", "1mo"),
  *        empty on non-review tasks.
+ * @param urgent Eisenhower axis: a near deadline or something blocked without it.
+ * @param important Eisenhower axis: moves the big goals (exam score, key project).
+ *        The AI guesses both on entry; a tap on the quadrant chip re-classifies.
  */
 @Entity(tableName = "user_tasks")
 data class TaskEntity(
@@ -36,7 +39,9 @@ data class TaskEntity(
     val sortOrder: Int = 0,
     val needsReview: Boolean = false,
     val reviewParentId: Long? = null,
-    val reviewStage: String = ""
+    val reviewStage: String = "",
+    val urgent: Boolean = false,
+    val important: Boolean = false
 )
 
 /** One AI- or user-made step of a [TaskEntity] (Zeigarnik: close the open loop step by step). */

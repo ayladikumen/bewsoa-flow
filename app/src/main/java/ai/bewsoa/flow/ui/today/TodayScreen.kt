@@ -4,6 +4,7 @@ import android.widget.Toast
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,11 +19,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.Button
@@ -42,10 +46,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.platform.LocalContext
@@ -90,6 +97,7 @@ fun TodayScreen(
     val tasksState by tasksViewModel.uiState.collectAsStateWithLifecycle()
     val proposal by viewModel.proposal.collectAsStateWithLifecycle()
     var now by remember { mutableStateOf(LocalTime.now()) }
+    var catchUpOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -112,14 +120,34 @@ fun TodayScreen(
         }
     }
 
+    // The block list is reordered locally during a drag, then committed on drop —
+    // the flow refresh then re-slots each block's times.
+    var localBlocks by remember { mutableStateOf(state.blocks) }
+    LaunchedEffect(state.blocks) { localBlocks = state.blocks }
+
+    val listState = rememberLazyListState()
+    val reorderableState = rememberReorderableLazyListState(listState) { from, to ->
+        val fromKey = from.key as? String
+        val toKey = to.key as? String
+        if (fromKey?.startsWith("block_") == true && toKey?.startsWith("block_") == true) {
+            val fromIndex = localBlocks.indexOfFirst { "block_${it.block.id}" == fromKey }
+            val toIndex = localBlocks.indexOfFirst { "block_${it.block.id}" == toKey }
+            if (fromIndex >= 0 && toIndex >= 0) {
+                localBlocks = localBlocks.toMutableList()
+                    .apply { add(toIndex, removeAt(fromIndex)) }
+            }
+        }
+    }
+
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        item { TodayHeader(state, onOpenAlerts) }
+        item(key = "header") { TodayHeader(state, onOpenAlerts) }
         proposal?.let { pending ->
-            item {
+            item(key = "coach") {
                 CoachProposalCard(
                     proposal = pending,
                     onAccept = viewModel::acceptProposal,
@@ -127,49 +155,67 @@ fun TodayScreen(
                 )
             }
         }
-        item { HeroCard(state, now) }
-        item { DeepWorkCard(state) }
+        item(key = "hero") { HeroCard(state, now) }
+        item(key = "deepwork") { DeepWorkCard(state) }
 
         val todayMissed = state.blocks.filter {
             !it.done && it.block.counted && now >= it.block.end
         }
-        if (todayMissed.isNotEmpty() || state.yesterdayMissed.isNotEmpty()) {
-            item { SectionHeader("Catch up") }
-            if (todayMissed.isNotEmpty()) {
-                item { CatchUpLabel("Today · ended, not logged") }
-                items(todayMissed, key = { "miss_t_${it.block.id}" }) { item ->
-                    CatchUpRow(item) { viewModel.setDone(item.block.id, true) }
-                }
+        val missedCount = todayMissed.size + state.yesterdayMissed.size
+        if (missedCount > 0) {
+            item(key = "catchup_head") {
+                CatchUpSummary(missedCount, catchUpOpen) { catchUpOpen = !catchUpOpen }
             }
-            if (state.yesterdayMissed.isNotEmpty()) {
-                item { CatchUpLabel("Yesterday") }
-                items(state.yesterdayMissed, key = { "miss_y_${it.block.id}" }) { item ->
-                    CatchUpRow(item) { viewModel.setYesterdayDone(item.block.id, true) }
+            if (catchUpOpen) {
+                if (todayMissed.isNotEmpty()) {
+                    item(key = "catchup_today_label") { CatchUpLabel("Today · ended, not logged") }
+                    items(todayMissed, key = { "miss_t_${it.block.id}" }) { item ->
+                        CatchUpRow(item) { viewModel.setDone(item.block.id, true) }
+                    }
+                }
+                if (state.yesterdayMissed.isNotEmpty()) {
+                    item(key = "catchup_y_label") { CatchUpLabel("Yesterday") }
+                    items(state.yesterdayMissed, key = { "miss_y_${it.block.id}" }) { item ->
+                        CatchUpRow(item) { viewModel.setYesterdayDone(item.block.id, true) }
+                    }
                 }
             }
         }
 
-        item {
+        item(key = "blocks_head") {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                SectionHeader("Today's blocks")
+                SectionHeader("Today's blocks · hold & drag")
                 SkipBudgetLabel(state.skipBudget)
             }
         }
-        items(state.blocks, key = { it.block.id }) { item ->
-            BlockCard(
-                item = item,
-                now = now,
-                onToggle = { viewModel.setDone(item.block.id, !item.done) },
-                onSkip = { viewModel.skip(item.block.id) },
-                onUnskip = { viewModel.unskip(item.block.id) }
-            )
+        items(localBlocks, key = { "block_${it.block.id}" }) { item ->
+            ReorderableItem(reorderableState, key = "block_${item.block.id}") { isDragging ->
+                BlockCard(
+                    item = item,
+                    now = now,
+                    onToggle = { viewModel.setDone(item.block.id, !item.done) },
+                    onSkip = { viewModel.skip(item.block.id) },
+                    onUnskip = { viewModel.unskip(item.block.id) },
+                    modifier = Modifier
+                        .longPressDraggableHandle(
+                            onDragStopped = {
+                                viewModel.commitBlockOrder(localBlocks.map { it.block.id })
+                            }
+                        )
+                        .graphicsLayer {
+                            if (isDragging) {
+                                scaleX = 1.02f
+                                scaleY = 1.02f
+                            }
+                        }
+                )
+            }
         }
-        item { Spacer(Modifier.height(4.dp)) }
-        item { SectionHeader("My tasks") }
+        item(key = "tasks_head") { SectionHeader("My tasks") }
         tasksSection(
             state = tasksState,
             actions = TaskActions(
@@ -180,6 +226,7 @@ fun TodayScreen(
                 onSplit = tasksViewModel::splitTask,
                 onDelete = tasksViewModel::deleteTask,
                 onMoveTomorrow = tasksViewModel::moveToTomorrow,
+                onQuadrant = tasksViewModel::cycleQuadrant,
                 onCapacity = tasksViewModel::adjustCapacity,
                 onClearMessage = tasksViewModel::clearMessage
             )
@@ -420,6 +467,7 @@ private fun HeroCard(state: TodayUiState, now: LocalTime) {
 
 private const val DEEP_WORK_GOAL_MIN = 360 // 6h — a soft daily reference, not a rule.
 
+/** One slim line: focused minutes so far vs the soft goal. Details live in the Guide. */
 @Composable
 private fun DeepWorkCard(state: TodayUiState) {
     GlowCard {
@@ -428,37 +476,55 @@ private fun DeepWorkCard(state: TodayUiState) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Text(
-                    "DEEP WORK TODAY",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Cyan,
-                    letterSpacing = 1.5.sp
-                )
-                Spacer(Modifier.height(3.dp))
-                Text(
-                    if (state.deepWorkMinutes == 0) "0m" else formatHours(state.deepWorkMinutes.toLong()),
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = TextBright
-                )
-            }
             Text(
-                "goal ${formatHours(DEEP_WORK_GOAL_MIN.toLong())}",
-                style = MaterialTheme.typography.labelMedium,
-                color = TextDim
+                "DEEP WORK",
+                style = MaterialTheme.typography.labelSmall,
+                color = Cyan,
+                letterSpacing = 1.5.sp
+            )
+            Text(
+                "${formatHours(state.deepWorkMinutes.toLong())} · goal " +
+                    formatHours(DEEP_WORK_GOAL_MIN.toLong()),
+                style = MaterialTheme.typography.labelLarge,
+                color = TextBright
             )
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(8.dp))
         StatBar(
             ratio = state.deepWorkMinutes.toFloat() / DEEP_WORK_GOAL_MIN,
-            color = Cyan
+            color = Cyan,
+            height = 6.dp
         )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            "Focused YKS / TYT / SAT / project blocks you've logged today.",
-            style = MaterialTheme.typography.bodySmall,
-            color = TextDim
-        )
+    }
+}
+
+/** Collapsed by default — one line says how much is unlogged, a tap opens the list. */
+@Composable
+private fun CatchUpSummary(count: Int, open: Boolean, onToggle: () -> Unit) {
+    GlowCard(accent = Coral, modifier = Modifier.clickable(onClick = onToggle)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "⏰ Catch up",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = TextBright
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "$count block${if (count == 1) "" else "s"} ended without a log",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextDim
+                )
+            }
+            Icon(
+                imageVector = if (open) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                contentDescription = if (open) "Collapse" else "Expand",
+                tint = Coral
+            )
+        }
     }
 }
 
@@ -509,7 +575,8 @@ private fun BlockCard(
     now: LocalTime,
     onToggle: () -> Unit,
     onSkip: () -> Unit,
-    onUnskip: () -> Unit
+    onUnskip: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val block = item.block
     val isCurrent = now >= block.start && now < block.end && !item.skipped
@@ -517,7 +584,7 @@ private fun BlockCard(
     val isPastUndone = !item.done && !item.skipped && block.counted && now >= block.end
     val accent = block.track.color()
 
-    GlowCard(accent = if (isCurrent) accent else null) {
+    GlowCard(modifier = modifier, accent = if (isCurrent) accent else null) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(

@@ -13,8 +13,9 @@ android {
         applicationId = "ai.bewsoa.flow"
         minSdk = 26
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.2.0"
+        // Must stay ahead of the installed build (5) or install is a downgrade.
+        versionCode = 6
+        versionName = "2.0.0-dev"
     }
 
     buildTypes {
@@ -54,6 +55,9 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
+
+    // Long-press drag-to-reorder for the Today block list.
+    implementation("sh.calvin.reorderable:reorderable:2.4.3")
 
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.6")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6")

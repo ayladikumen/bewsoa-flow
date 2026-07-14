@@ -3,6 +3,7 @@ package ai.bewsoa.flow.ui.progress
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ai.bewsoa.flow.data.CustomProgram
+import ai.bewsoa.flow.data.FocusRepository
 import ai.bewsoa.flow.data.Insight
 import ai.bewsoa.flow.data.Insights
 import ai.bewsoa.flow.data.ProgramRepository
@@ -20,14 +21,25 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters
 
+/** The week's Deep Focus tally: total time, session count, minutes per day (Mon..Sun). */
+data class FocusWeekStats(
+    val totalMinutes: Int = 0,
+    val sessions: Int = 0,
+    val dayMinutes: List<Int> = List(7) { 0 }
+)
+
 data class ProgressUiState(
     val stats: WeekStats? = null,
     val streak: StreakInfo = StreakInfo(0, yesterdayKept = true, todayKept = false),
-    val insights: List<Insight> = emptyList()
+    val insights: List<Insight> = emptyList(),
+    val focus: FocusWeekStats = FocusWeekStats()
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class ProgressViewModel(private val repo: ProgramRepository) : ViewModel() {
+class ProgressViewModel(
+    private val repo: ProgramRepository,
+    focusRepo: FocusRepository
+) : ViewModel() {
 
     val weekStart: LocalDate =
         LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
@@ -38,14 +50,28 @@ class ProgressViewModel(private val repo: ProgramRepository) : ViewModel() {
     val uiState: StateFlow<ProgressUiState> =
         combine(
             repo.observeRange(historyStart, weekStart.plusDays(6)),
+            focusRepo.observeRange(weekStart, weekStart.plusDays(6)),
             CustomProgram.version
-        ) { rows, _ -> rows }
-        .mapLatest { rows ->
+        ) { rows, focusSessions, _ -> rows to focusSessions }
+        .mapLatest { (rows, focusSessions) ->
             val weekRows = rows.filter { it.date >= weekStart.toString() }
+            val dayMinutes = MutableList(7) { 0 }
+            focusSessions.forEach { session ->
+                val index = runCatching {
+                    java.time.temporal.ChronoUnit.DAYS
+                        .between(weekStart, LocalDate.parse(session.date)).toInt()
+                }.getOrDefault(-1)
+                if (index in 0..6) dayMinutes[index] += session.minutes
+            }
             ProgressUiState(
                 stats = buildWeekStats(weekStart, weekRows),
                 streak = repo.computeStreak(LocalDate.now()),
-                insights = Insights.compute(LocalDate.now(), rows, WeeklyProgram::blocksFor)
+                insights = Insights.compute(LocalDate.now(), rows, WeeklyProgram::blocksFor),
+                focus = FocusWeekStats(
+                    totalMinutes = focusSessions.sumOf { it.minutes },
+                    sessions = focusSessions.size,
+                    dayMinutes = dayMinutes
+                )
             )
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProgressUiState())

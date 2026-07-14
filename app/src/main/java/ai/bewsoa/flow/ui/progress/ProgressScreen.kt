@@ -91,6 +91,8 @@ fun ProgressScreen(
             item { WeekOverviewCard(stats) }
             item { SectionHeader("Tracks this week") }
             items(stats.tracks, key = { it.track.name }) { stat -> TrackRow(stat) }
+            item { SectionHeader("Deep focus") }
+            item { FocusWeekCard(state.focus) }
             item { NeverMissTwiceCard() }
         }
         item { ReviewEntryCard(onOpenReview) }
@@ -287,6 +289,91 @@ private fun TrackRow(stat: TrackStat) {
                 Spacer(Modifier.height(8.dp))
                 StatBar(ratio = ratio, color = trackColor)
             }
+        }
+    }
+}
+
+/** The week's Deep Focus sessions, kept under its own standing heading. */
+@Composable
+private fun FocusWeekCard(focus: FocusWeekStats) {
+    GlowCard(accent = Cyan) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("🧠", fontSize = 22.sp)
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text(
+                        "Focus sessions",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = TextBright
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "${focus.sessions} session${if (focus.sessions == 1) "" else "s"} this week",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextDim
+                    )
+                }
+            }
+            Text(
+                formatHours(focus.totalMinutes.toLong()),
+                style = MaterialTheme.typography.titleMedium,
+                color = Cyan
+            )
+        }
+        if (focus.totalMinutes > 0) {
+            Spacer(Modifier.height(14.dp))
+            val maxDay = focus.dayMinutes.max().coerceAtLeast(1)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                focus.dayMinutes.forEachIndexed { index, minutes ->
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            contentAlignment = Alignment.BottomCenter
+                        ) {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth(0.6f)
+                                    .fillMaxHeight(
+                                        if (minutes == 0) 0.06f
+                                        else (minutes.toFloat() / maxDay).coerceAtLeast(0.1f)
+                                    )
+                                    .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+                                    .background(if (minutes == 0) Outline else Cyan)
+                            )
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            java.time.DayOfWeek.of(index + 1)
+                                .getDisplayName(java.time.format.TextStyle.SHORT, Locale.US)
+                                .take(2),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextDim
+                        )
+                    }
+                }
+            }
+        } else {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Run a session from the Focus tab — confirmed time lands here.",
+                style = MaterialTheme.typography.bodySmall,
+                color = TextDim
+            )
         }
     }
 }

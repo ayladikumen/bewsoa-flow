@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import ai.bewsoa.flow.data.CustomProgram
+import ai.bewsoa.flow.data.DayBlockOrder
+import ai.bewsoa.flow.data.FocusRepository
 import ai.bewsoa.flow.data.ProgramDiff
 import ai.bewsoa.flow.data.ProgramRepository
 import ai.bewsoa.flow.data.SettingsRepository
@@ -44,7 +46,7 @@ data class TodayUiState(
     val streak: StreakInfo = StreakInfo(0, yesterdayKept = true, todayKept = false),
     /** Yesterday's counted blocks still not logged — the catch-up list. */
     val yesterdayMissed: List<BlockWithStatus> = emptyList(),
-    /** Minutes of focused (deep-work track) blocks already completed today. */
+    /** Deep-work track blocks + confirmed Focus sessions completed today, in minutes. */
     val deepWorkMinutes: Int = 0,
     val skipBudget: SkipBudget = SkipBudget(0, ProgramRepository.SKIP_CAP_PER_WEEK)
 ) {
@@ -63,6 +65,7 @@ class TodayViewModel(
 ) : AndroidViewModel(app) {
 
     private val settings = SettingsRepository.get(app)
+    private val focusRepo = FocusRepository.get(app)
 
     private val date = MutableStateFlow(LocalDate.now())
 
@@ -103,13 +106,18 @@ class TodayViewModel(
         viewModelScope.launch { settings.clearPendingProposal() }
     }
 
-    val uiState: StateFlow<TodayUiState> = combine(date, CustomProgram.version) { day, _ -> day }
+    val uiState: StateFlow<TodayUiState> = combine(
+        date,
+        CustomProgram.version,
+        DayBlockOrder.version
+    ) { day, _, _ -> day }
         .flatMapLatest { day ->
             val yesterday = day.minusDays(1)
             combine(
                 repo.observeRange(yesterday, day),
+                focusRepo.observeForDate(day),
                 repo.observeSkipBudget(day)
-            ) { rows, budget ->
+            ) { rows, focusSessions, budget ->
                 val doneToday = rows.filter { it.date == day.toString() && it.done }
                     .map { it.taskId }.toSet()
                 val skippedToday = rows.filter { it.date == day.toString() && it.skipped }
@@ -135,7 +143,7 @@ class TodayViewModel(
                 val deepWork = blocks
                     .filter { it.done && it.block.counted && it.block.track in DEEP_TRACKS }
                     .sumOf { it.block.durationMinutes }
-                    .toInt()
+                    .toInt() + focusSessions.sumOf { it.minutes }
 
                 TodayUiState(
                     date = day,
@@ -194,6 +202,18 @@ class TodayViewModel(
     fun setYesterdayDone(taskId: String, done: Boolean) {
         viewModelScope.launch {
             repo.setDone(date.value.minusDays(1), taskId, done)
+            Widgets.refreshAll(getApplication())
+        }
+    }
+
+    /**
+     * A drag on the block list ended — persist today's new slot assignment and
+     * re-aim everything that depends on block times (reminders, widgets).
+     */
+    fun commitBlockOrder(idsInSlotOrder: List<String>) {
+        viewModelScope.launch {
+            DayBlockOrder.set(getApplication(), date.value, idsInSlotOrder)
+            TaskAlarmScheduler.scheduleUpcoming(getApplication())
             Widgets.refreshAll(getApplication())
         }
     }

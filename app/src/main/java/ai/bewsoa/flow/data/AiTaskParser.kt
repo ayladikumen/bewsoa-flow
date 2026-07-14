@@ -26,7 +26,9 @@ object AiTaskParser {
         val scheduledDate: String,
         val estimatedMinutes: Int,
         val subtasks: List<String>,
-        val needsReview: Boolean
+        val needsReview: Boolean,
+        val urgent: Boolean,
+        val important: Boolean
     )
 
     private const val CLAUDE_ENDPOINT = "https://api.anthropic.com/v1/messages"
@@ -53,7 +55,11 @@ object AiTaskParser {
             "language (e.g. 'konu anlatımı izle', '30 soru çöz', 'yanlışları defterine yaz'); " +
             "leave it empty for an already-atomic task. 'needsReview' is true only when the " +
             "task is memorization the student will forget without repetition (formulas, " +
-            "vocabulary, dates), false for practice or building work."
+            "vocabulary, dates), false for practice or building work. 'urgent' and " +
+            "'important' are the Eisenhower axes: 'urgent' is true when there is a near " +
+            "deadline or something else is blocked until this is done; 'important' is true " +
+            "when it directly moves the big goals (exam score, a key project) rather than " +
+            "being busywork. Judge each independently."
 
     private const val SPLIT_SYSTEM =
         "You break a student's study/build task into concrete subtasks for the Bewsoa Flow " +
@@ -74,9 +80,11 @@ object AiTaskParser {
         "scheduledDate": {"type": "string", "description": "ISO yyyy-MM-dd"},
         "estimatedMinutes": {"type": "integer"},
         "subtasks": {"type": "array", "items": {"type": "string"}},
-        "needsReview": {"type": "boolean"}
+        "needsReview": {"type": "boolean"},
+        "urgent": {"type": "boolean"},
+        "important": {"type": "boolean"}
       },
-      "required": ["title","note","track","scheduledDate","estimatedMinutes","subtasks","needsReview"],
+      "required": ["title","note","track","scheduledDate","estimatedMinutes","subtasks","needsReview","urgent","important"],
       "additionalProperties": false
     }
     """.trimIndent()
@@ -114,7 +122,9 @@ object AiTaskParser {
                 scheduledDate = obj.optString("scheduledDate", todayIso).ifBlank { todayIso },
                 estimatedMinutes = obj.optInt("estimatedMinutes", 0).coerceIn(0, 24 * 60),
                 subtasks = obj.optJSONArray("subtasks").toStringList(),
-                needsReview = obj.optBoolean("needsReview", false)
+                needsReview = obj.optBoolean("needsReview", false),
+                urgent = obj.optBoolean("urgent", false),
+                important = obj.optBoolean("important", false)
             )
         }
     }
@@ -234,11 +244,16 @@ object AiTaskParser {
                 .put("estimatedMinutes", JSONObject().put("type", "integer"))
                 .put("subtasks", JSONObject().put("type", "array").put("items", strType()))
                 .put("needsReview", JSONObject().put("type", "boolean"))
+                .put("urgent", JSONObject().put("type", "boolean"))
+                .put("important", JSONObject().put("type", "boolean"))
         )
         .put(
             "required",
             JSONArray(
-                listOf("title", "note", "track", "scheduledDate", "estimatedMinutes", "subtasks", "needsReview")
+                listOf(
+                    "title", "note", "track", "scheduledDate", "estimatedMinutes",
+                    "subtasks", "needsReview", "urgent", "important"
+                )
             )
         )
 

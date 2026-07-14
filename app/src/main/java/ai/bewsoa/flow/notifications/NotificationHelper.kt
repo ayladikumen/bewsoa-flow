@@ -25,8 +25,11 @@ object NotificationHelper {
     const val CHANNEL_TASKS = "task_reminders"
     const val CHANNEL_MOTIVATION = "motivation"
     const val CHANNEL_COACH = "coach"
+    const val CHANNEL_FOCUS = "focus_timer"
     private const val MOTIVATION_ID = 7001
     private const val COACH_ID = 7002
+    private const val FOCUS_ID = 7003
+    private const val FOCUS_RUNNING_ID = 7004
 
     fun createChannels(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
@@ -50,6 +53,13 @@ object NotificationHelper {
                 context.getString(R.string.channel_coach_name),
                 NotificationManager.IMPORTANCE_DEFAULT
             ).apply { description = context.getString(R.string.channel_coach_desc) }
+        )
+        manager.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_FOCUS,
+                context.getString(R.string.channel_focus_name),
+                NotificationManager.IMPORTANCE_LOW // silent — it's a status, not an alert
+            ).apply { description = context.getString(R.string.channel_focus_desc) }
         )
     }
 
@@ -111,6 +121,51 @@ object NotificationHelper {
 
         notifySafely(context, id, notification)
         ProgramRepository.get(context).logNotification("task", title, text)
+    }
+
+    /**
+     * Live countdown while a Deep Focus session runs. The chronometer ticks
+     * system-side (no service, no updates): ongoing, silent, one per session.
+     */
+    fun showFocusRunning(context: Context, label: String, endsAt: Long) {
+        if (!canNotify(context)) return
+        val notification = NotificationCompat.Builder(context, CHANNEL_FOCUS)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("🧠 Focus: $label")
+            .setContentText("Counting down — confirm in the app when time's up.")
+            .setWhen(endsAt)
+            .setUsesChronometer(true)
+            .setChronometerCountDown(true)
+            .setShowWhen(true)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setContentIntent(openAppIntent(context, FOCUS_RUNNING_ID))
+            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+            .build()
+        notifySafely(context, FOCUS_RUNNING_ID, notification)
+    }
+
+    /** Session finished, abandoned, or the time-up alert took over. */
+    fun cancelFocusRunning(context: Context) {
+        NotificationManagerCompat.from(context).cancel(FOCUS_RUNNING_ID)
+    }
+
+    /** The Deep Focus countdown just ran out — ask for the verdict in the app. */
+    suspend fun showFocusEnd(context: Context, label: String) {
+        if (!canNotify(context)) return
+        val title = "🧠 Focus time is up"
+        val text = "\"$label\" — did you finish? Open the app to log it."
+        val notification = NotificationCompat.Builder(context, CHANNEL_TASKS)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setContentIntent(openAppIntent(context, FOCUS_ID))
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .build()
+        notifySafely(context, FOCUS_ID, notification)
+        ProgramRepository.get(context).logNotification("focus", title, text)
     }
 
     suspend fun showCoach(context: Context, title: String, message: String) {

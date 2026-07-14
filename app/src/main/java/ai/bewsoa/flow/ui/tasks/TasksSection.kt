@@ -2,6 +2,7 @@ package ai.bewsoa.flow.ui.tasks
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,6 +63,7 @@ import ai.bewsoa.flow.ui.theme.Amber
 import ai.bewsoa.flow.ui.theme.Coral
 import ai.bewsoa.flow.ui.theme.Cyan
 import ai.bewsoa.flow.ui.theme.Mint
+import ai.bewsoa.flow.ui.theme.Muted
 import ai.bewsoa.flow.ui.theme.Outline
 import ai.bewsoa.flow.ui.theme.TextBright
 import ai.bewsoa.flow.ui.theme.TextDim
@@ -80,6 +82,7 @@ class TaskActions(
     val onSplit: (Long) -> Unit,
     val onDelete: (TaskEntity) -> Unit,
     val onMoveTomorrow: (TaskEntity) -> Unit,
+    val onQuadrant: (TaskEntity) -> Unit,
     val onCapacity: (Int) -> Unit,
     val onClearMessage: () -> Unit
 )
@@ -111,7 +114,7 @@ private fun TaskComposer(state: TasksUiState, actions: TaskActions) {
             modifier = Modifier.fillMaxWidth(),
             placeholder = {
                 Text(
-                    "What do you need to do? e.g. solve 3 derivative tests tomorrow evening",
+                    "Add a task — plain words work",
                     style = MaterialTheme.typography.bodyMedium
                 )
             },
@@ -171,14 +174,10 @@ private fun TaskComposer(state: TasksUiState, actions: TaskActions) {
                 }
             }
         }
-        val hint = when {
-            state.message != null -> state.message to Coral
-            !state.aiAvailable -> "Add an API key in Settings to let AI schedule, size and split your tasks." to TextDim
-            else -> null
-        }
-        if (hint != null) {
+        // Only surface problems here — how-it-works text lives in the Guide.
+        if (state.message != null) {
             Spacer(Modifier.height(8.dp))
-            Text(hint.first, style = MaterialTheme.typography.bodySmall, color = hint.second)
+            Text(state.message, style = MaterialTheme.typography.bodySmall, color = Coral)
         }
     }
 }
@@ -226,13 +225,16 @@ private fun CapacityMeter(state: TasksUiState, onCapacity: (Int) -> Unit) {
             ratio = state.capacityRatio,
             color = if (state.overCapacity) Coral else Mint
         )
-        Spacer(Modifier.height(6.dp))
-        val (msg, tint) = if (state.overCapacity) {
-            "Over your ${formatHours(capacity.toLong())} by ${formatHours((planned - capacity).toLong())} — trim or move a task." to Coral
-        } else {
-            "${formatHours((capacity - planned).toLong())} of focus time left today." to TextDim
+        // Quiet when things fit; only the overload warning earns a line.
+        if (state.overCapacity) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Over your ${formatHours(capacity.toLong())} by " +
+                    "${formatHours((planned - capacity).toLong())} — trim or move a task.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Coral
+            )
         }
-        Text(msg, style = MaterialTheme.typography.bodySmall, color = tint)
     }
 }
 
@@ -270,6 +272,9 @@ private fun TaskCard(
                 )
                 Spacer(Modifier.height(6.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    // Eisenhower quadrant — a tap walks Do first → Schedule → Quick → Later.
+                    val quadrant = quadrantOf(task)
+                    MiniChip(quadrant.first, quadrant.second) { actions.onQuadrant(task) }
                     if (track != null) MiniChip("${track.emoji} ${track.label}", accent)
                     if (task.reviewStage.isNotEmpty()) {
                         MiniChip("🔁 Review · ${reviewLabel(task.reviewStage)}", Violet)
@@ -373,13 +378,23 @@ private fun CardAction(
     }
 }
 
+/** Eisenhower chip label + color for a task's current quadrant. */
 @Composable
-private fun MiniChip(text: String, color: Color) {
+private fun quadrantOf(task: TaskEntity): Pair<String, Color> = when {
+    task.urgent && task.important -> "🔥 Do first" to Coral
+    task.important -> "🧭 Schedule" to Cyan
+    task.urgent -> "⚡ Quick win" to Amber
+    else -> "🌙 Later" to Muted
+}
+
+@Composable
+private fun MiniChip(text: String, color: Color, onClick: (() -> Unit)? = null) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
             .background(color.copy(alpha = 0.14f))
             .border(1.dp, color.copy(alpha = 0.4f), RoundedCornerShape(50))
+            .let { if (onClick != null) it.clickable(onClick = onClick) else it }
             .padding(horizontal = 9.dp, vertical = 4.dp)
     ) {
         Text(text, style = MaterialTheme.typography.labelSmall, color = TextBright)
@@ -388,21 +403,11 @@ private fun MiniChip(text: String, color: Color) {
 
 @Composable
 private fun EmptyHint() {
-    GlowCard {
-        Text(
-            "No tasks yet",
-            style = MaterialTheme.typography.titleSmall,
-            color = TextBright
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            "Jot down what you actually need to do — the routine above is your time skeleton, " +
-                "these are the jobs. AI can size them, split them and schedule reviews. " +
-                "Nothing here dents your streak: slide a task to tomorrow whenever you need to.",
-            style = MaterialTheme.typography.bodySmall,
-            color = TextDim
-        )
-    }
+    Text(
+        "No tasks yet — the routine above is the skeleton, write the actual jobs here.",
+        style = MaterialTheme.typography.bodySmall,
+        color = TextDim
+    )
 }
 
 private fun reviewLabel(stage: String): String = when (stage) {
