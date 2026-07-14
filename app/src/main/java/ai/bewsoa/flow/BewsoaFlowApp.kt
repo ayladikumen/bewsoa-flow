@@ -8,6 +8,7 @@ import ai.bewsoa.flow.notifications.MotivationWorker
 import ai.bewsoa.flow.notifications.NotificationHelper
 import ai.bewsoa.flow.notifications.ScheduleSyncWorker
 import ai.bewsoa.flow.notifications.TaskAlarmScheduler
+import ai.bewsoa.flow.ui.share.Sharing
 import ai.bewsoa.flow.ui.theme.ThemeCache
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +34,10 @@ class BewsoaFlowApp : Application() {
         ScheduleSyncWorker.enqueue(this)
         MotivationWorker.kickoff(this)
         CoachWorker.schedule(this)
-        appScope.launch { TaskAlarmScheduler.scheduleUpcoming(this@BewsoaFlowApp) }
+        appScope.launch {
+            TaskAlarmScheduler.scheduleUpcoming(this@BewsoaFlowApp)
+            // Yesterday's export has already been shared or abandoned.
+            Sharing.pruneOld(this@BewsoaFlowApp)
+        }
     }
 }

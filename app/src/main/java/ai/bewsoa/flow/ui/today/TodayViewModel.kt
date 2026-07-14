@@ -7,6 +7,7 @@ import ai.bewsoa.flow.data.CustomProgram
 import ai.bewsoa.flow.data.ProgramDiff
 import ai.bewsoa.flow.data.ProgramRepository
 import ai.bewsoa.flow.data.SettingsRepository
+import ai.bewsoa.flow.data.SkipBudget
 import ai.bewsoa.flow.data.StreakInfo
 import ai.bewsoa.flow.data.TaskBlock
 import ai.bewsoa.flow.data.Track
@@ -14,17 +15,23 @@ import ai.bewsoa.flow.data.WeeklyProgram
 import ai.bewsoa.flow.notifications.TaskAlarmScheduler
 import ai.bewsoa.flow.widget.Widgets
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
-data class BlockWithStatus(val block: TaskBlock, val done: Boolean)
+data class BlockWithStatus(
+    val block: TaskBlock,
+    val done: Boolean,
+    val skipped: Boolean = false
+)
 
 /** A coach draft waiting for the user's verdict. */
 data class CoachProposal(val note: String, val diff: List<String>, val json: String)
@@ -38,8 +45,13 @@ data class TodayUiState(
     /** Yesterday's counted blocks still not logged — the catch-up list. */
     val yesterdayMissed: List<BlockWithStatus> = emptyList(),
     /** Minutes of focused (deep-work track) blocks already completed today. */
-    val deepWorkMinutes: Int = 0
+    val deepWorkMinutes: Int = 0,
+    val skipBudget: SkipBudget = SkipBudget(0, ProgramRepository.SKIP_CAP_PER_WEEK)
 ) {
+    /**
+     * [countedCount] already excludes today's skips, so this is the honest
+     * ratio: excusing a block can't drag it down, and can't inflate it either.
+     */
     val progress: Float
         get() = if (countedCount == 0) 0f else doneCount.toFloat() / countedCount
 }
@@ -53,6 +65,11 @@ class TodayViewModel(
     private val settings = SettingsRepository.get(app)
 
     private val date = MutableStateFlow(LocalDate.now())
+
+    private val _skipRejected = MutableSharedFlow<Unit>()
+
+    /** Fires when a skip was refused because the weekly budget is spent. */
+    val skipRejected: SharedFlow<Unit> = _skipRejected.asSharedFlow()
 
     /** Non-null while a coach draft is waiting; diff is against the active program. */
     val proposal: StateFlow<CoachProposal?> = combine(
@@ -89,18 +106,30 @@ class TodayViewModel(
     val uiState: StateFlow<TodayUiState> = combine(date, CustomProgram.version) { day, _ -> day }
         .flatMapLatest { day ->
             val yesterday = day.minusDays(1)
-            repo.observeRange(yesterday, day).mapLatest { rows ->
+            combine(
+                repo.observeRange(yesterday, day),
+                repo.observeSkipBudget(day)
+            ) { rows, budget ->
                 val doneToday = rows.filter { it.date == day.toString() && it.done }
+                    .map { it.taskId }.toSet()
+                val skippedToday = rows.filter { it.date == day.toString() && it.skipped }
                     .map { it.taskId }.toSet()
                 val doneYesterday = rows.filter { it.date == yesterday.toString() && it.done }
                     .map { it.taskId }.toSet()
+                val skippedYesterday = rows.filter { it.date == yesterday.toString() && it.skipped }
+                    .map { it.taskId }.toSet()
 
                 val blocks = repo.blocksFor(day).map {
-                    BlockWithStatus(it, doneToday.contains(it.id))
+                    BlockWithStatus(
+                        block = it,
+                        done = doneToday.contains(it.id),
+                        skipped = skippedToday.contains(it.id)
+                    )
                 }
-                val counted = blocks.filter { it.block.counted }
+                // Excused blocks leave the denominator — not a miss, not a win.
+                val counted = blocks.filter { it.block.counted && !it.skipped }
                 val yesterdayMissed = repo.blocksFor(yesterday)
-                    .filter { it.counted }
+                    .filter { it.counted && it.id !in skippedYesterday }
                     .map { BlockWithStatus(it, doneYesterday.contains(it.id)) }
                     .filter { !it.done }
                 val deepWork = blocks
@@ -115,7 +144,8 @@ class TodayViewModel(
                     countedCount = counted.size,
                     streak = repo.computeStreak(day),
                     yesterdayMissed = yesterdayMissed,
-                    deepWorkMinutes = deepWork
+                    deepWorkMinutes = deepWork,
+                    skipBudget = budget
                 )
             }
         }
@@ -134,6 +164,28 @@ class TodayViewModel(
     fun setDone(taskId: String, done: Boolean) {
         viewModelScope.launch {
             repo.setDone(date.value, taskId, done)
+            Widgets.refreshAll(getApplication())
+        }
+    }
+
+    /**
+     * Excuses a block for today only. Emits to [skipRejected] when the week's
+     * three skips are already spent — the cap has to be visible, or "skip"
+     * quietly becomes a way to fake a perfect streak.
+     */
+    fun skip(taskId: String) {
+        viewModelScope.launch {
+            if (repo.skip(date.value, taskId)) {
+                Widgets.refreshAll(getApplication())
+            } else {
+                _skipRejected.emit(Unit)
+            }
+        }
+    }
+
+    fun unskip(taskId: String) {
+        viewModelScope.launch {
+            repo.unskip(date.value, taskId)
             Widgets.refreshAll(getApplication())
         }
     }

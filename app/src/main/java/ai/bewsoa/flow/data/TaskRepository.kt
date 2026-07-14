@@ -27,6 +27,9 @@ class TaskRepository private constructor(
     fun observeForDate(date: LocalDate): Flow<List<TaskWithSubtasks>> =
         dao.observeForDate(date.toString())
 
+    suspend fun getRange(from: LocalDate, to: LocalDate): List<TaskWithSubtasks> =
+        dao.getRange(from.toString(), to.toString())
+
     val dailyCapacityMinutes: Flow<Int> = settings.dailyCapacityMinutes
 
     suspend fun setDailyCapacityMinutes(minutes: Int) = settings.setDailyCapacityMinutes(minutes)

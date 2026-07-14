@@ -38,14 +38,23 @@ object Insights {
             .filter { it.done }
             .groupBy({ LocalDate.parse(it.date) }, { it.taskId })
             .mapValues { (_, ids) -> ids.toSet() }
+        val skippedByDate: Map<LocalDate, Set<String>> = rows
+            .filter { it.skipped }
+            .groupBy({ LocalDate.parse(it.date) }, { it.taskId })
+            .mapValues { (_, ids) -> ids.toSet() }
 
-        // One record per counted block per elapsed day.
+        // One record per counted block per elapsed day. Skipped blocks are
+        // dropped outright rather than recorded as not-done: an excused block
+        // is not evidence of a weak spot, and counting it as one would punish
+        // the user for using the feature honestly.
         data class BlockDay(val date: LocalDate, val block: TaskBlock, val done: Boolean)
         val blockDays = generateSequence(firstDate) { it.plusDays(1) }
             .takeWhile { it <= lastFull }
             .flatMap { date ->
                 val doneIds = doneByDate[date].orEmpty()
+                val skippedIds = skippedByDate[date].orEmpty()
                 blocksFor(date).filter { it.counted }
+                    .filterNot { skippedIds.contains(it.id) }
                     .map { BlockDay(date, it, doneIds.contains(it.id)) }
             }
             .toList()

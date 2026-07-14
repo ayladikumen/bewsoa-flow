@@ -18,6 +18,13 @@ interface TaskDao {
     @Query("SELECT * FROM user_tasks WHERE scheduledDate = :date")
     suspend fun getForDate(date: String): List<TaskEntity>
 
+    @Transaction
+    @Query(
+        "SELECT * FROM user_tasks WHERE scheduledDate BETWEEN :from AND :to " +
+            "ORDER BY scheduledDate, sortOrder, id"
+    )
+    suspend fun getRange(from: String, to: String): List<TaskWithSubtasks>
+
     @Query("SELECT * FROM user_tasks WHERE id = :id LIMIT 1")
     suspend fun getTask(id: Long): TaskEntity?
 

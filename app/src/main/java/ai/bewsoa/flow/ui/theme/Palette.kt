@@ -34,7 +34,17 @@ data class Palette(
     val textDim: Color,
     val outline: Color,
     val ink: Color,          // text on accent/warn chips
-    val backgroundGradient: List<Color>
+    val backgroundGradient: List<Color>,
+    // Redesign additions. Defaults derive from the fields above so a palette
+    // only spells out what the derivation gets wrong.
+    val surfaceHigh: Color = card,          // nested rows inside a card
+    val surfaceSunken: Color = background,  // grid gutter, timer well
+    val onAccent: Color = ink,
+    val scrim: Color = Color(0x8C000000),
+    val railDim: Color = outline,           // the rail on a skipped block
+    val xp: Color = gold,                   // XP/level identity, kept distinct from `warn` (streak)
+    val focus: Color = accent,              // Focus tab identity
+    val skipHatch: Color = outline
 )
 
 object Palettes {
@@ -64,7 +74,8 @@ object Palettes {
         ink = Color(0xFF0B1020),
         backgroundGradient = listOf(
             Color(0xFF0B1020), Color(0xFF17123A), Color(0xFF0B1020)
-        )
+        ),
+        surfaceHigh = Color(0xFF1E2851)
     )
 
     /** Warm dark — maroon night, fire oranges and gold. */
@@ -92,7 +103,8 @@ object Palettes {
         ink = Color(0xFF190E0C),
         backgroundGradient = listOf(
             Color(0xFF190E0C), Color(0xFF3A1712), Color(0xFF190E0C)
-        )
+        ),
+        surfaceHigh = Color(0xFF3A231D)
     )
 
     /** Light theme — paper white with the violet/cyan identity kept readable. */
@@ -120,7 +132,13 @@ object Palettes {
         ink = Color(0xFFFFFFFF),
         backgroundGradient = listOf(
             Color(0xFFF3F5FC), Color(0xFFE9E3FF), Color(0xFFF3F5FC)
-        )
+        ),
+        // card and surface are both white here, so the derived surfaceHigh would
+        // be invisible; and background is already near-white, so sunken needs to
+        // go darker rather than match it.
+        surfaceHigh = Color(0xFFF1F3FB),
+        surfaceSunken = Color(0xFFE8ECF8),
+        scrim = Color(0x66000000)
     )
 
     /** AMOLED black — pure black, mint and cyan glow. */
@@ -148,7 +166,8 @@ object Palettes {
         ink = Color(0xFF000000),
         backgroundGradient = listOf(
             Color(0xFF000000), Color(0xFF0A0F1E), Color(0xFF000000)
-        )
+        ),
+        surfaceHigh = Color(0xFF161C29)
     )
 
     val all = listOf(NeonNight, Ember, Daylight, PitchBlack)
@@ -185,6 +204,9 @@ fun Palette.toColorScheme(): ColorScheme = if (isLight) {
         onSurface = textBright,
         surfaceVariant = card,
         onSurfaceVariant = textDim,
+        surfaceContainerLow = surface,
+        surfaceContainerHigh = surfaceHigh,
+        scrim = scrim,
         outline = outline,
         error = danger,
         onError = Color.White
@@ -205,6 +227,9 @@ fun Palette.toColorScheme(): ColorScheme = if (isLight) {
         onSurface = textBright,
         surfaceVariant = card,
         onSurfaceVariant = textDim,
+        surfaceContainerLow = surface,
+        surfaceContainerHigh = surfaceHigh,
+        scrim = scrim,
         outline = outline,
         error = danger,
         onError = ink

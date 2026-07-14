@@ -5,7 +5,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -53,6 +57,7 @@ import kotlin.math.roundToInt
 
 @Composable
 fun ProgressScreen(
+    onOpenReview: () -> Unit = {},
     viewModel: ProgressViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -87,6 +92,34 @@ fun ProgressScreen(
             item { SectionHeader("Tracks this week") }
             items(stats.tracks, key = { it.track.name }) { stat -> TrackRow(stat) }
             item { NeverMissTwiceCard() }
+        }
+        item { ReviewEntryCard(onOpenReview) }
+    }
+}
+
+/** Review lost its tab in the 5-tab bar; this is how you reach it now. */
+@Composable
+private fun ReviewEntryCard(onOpenReview: () -> Unit) {
+    GlowCard(modifier = Modifier.clickable(onClick = onOpenReview)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "Weekly review",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = TextBright
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Sunday — score the week and name one thing to change.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextDim
+                )
+            }
+            Icon(
+                Icons.AutoMirrored.Rounded.ArrowForward,
+                contentDescription = null,
+                tint = TextDim
+            )
         }
     }
 }

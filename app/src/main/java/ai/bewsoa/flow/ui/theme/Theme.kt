@@ -22,6 +22,7 @@ fun BewsoaFlowTheme(content: @Composable () -> Unit) {
         MaterialTheme(
             colorScheme = palette.toColorScheme(),
             typography = AppTypography,
+            shapes = AppShapes,
             content = content
         )
     }

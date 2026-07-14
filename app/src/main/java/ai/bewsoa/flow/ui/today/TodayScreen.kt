@@ -1,5 +1,7 @@
 package ai.bewsoa.flow.ui.today
 
+import android.widget.Toast
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -18,7 +20,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -43,6 +48,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.platform.LocalContext
+import ai.bewsoa.flow.data.SkipBudget
 import ai.bewsoa.flow.data.WeeklyProgram
 import ai.bewsoa.flow.ui.AppViewModelProvider
 import ai.bewsoa.flow.ui.components.GlowCard
@@ -59,6 +66,7 @@ import ai.bewsoa.flow.ui.theme.Amber
 import ai.bewsoa.flow.ui.theme.Coral
 import ai.bewsoa.flow.ui.theme.Cyan
 import ai.bewsoa.flow.ui.theme.Mint
+import ai.bewsoa.flow.ui.theme.Outline
 import ai.bewsoa.flow.ui.theme.TextBright
 import ai.bewsoa.flow.ui.theme.TextDim
 import ai.bewsoa.flow.ui.theme.Violet
@@ -74,6 +82,7 @@ private val headerDate = DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.US)
 
 @Composable
 fun TodayScreen(
+    onOpenAlerts: () -> Unit = {},
     viewModel: TodayViewModel = viewModel(factory = AppViewModelProvider.Factory),
     tasksViewModel: TasksViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
@@ -91,12 +100,24 @@ fun TodayScreen(
         }
     }
 
+    // A refused skip has to say why, or the cap just looks like a broken button.
+    val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        viewModel.skipRejected.collect {
+            Toast.makeText(
+                context,
+                "No skips left this week — they reset Monday.",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        item { TodayHeader(state) }
+        item { TodayHeader(state, onOpenAlerts) }
         proposal?.let { pending ->
             item {
                 CoachProposalCard(
@@ -128,12 +149,23 @@ fun TodayScreen(
             }
         }
 
-        item { SectionHeader("Today's blocks") }
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SectionHeader("Today's blocks")
+                SkipBudgetLabel(state.skipBudget)
+            }
+        }
         items(state.blocks, key = { it.block.id }) { item ->
             BlockCard(
                 item = item,
                 now = now,
-                onToggle = { viewModel.setDone(item.block.id, !item.done) }
+                onToggle = { viewModel.setDone(item.block.id, !item.done) },
+                onSkip = { viewModel.skip(item.block.id) },
+                onUnskip = { viewModel.unskip(item.block.id) }
             )
         }
         item { Spacer(Modifier.height(4.dp)) }
@@ -208,25 +240,66 @@ private fun CoachProposalCard(
 }
 
 @Composable
-private fun TodayHeader(state: TodayUiState) {
+private fun TodayHeader(state: TodayUiState, onOpenAlerts: () -> Unit) {
     Column {
-        Text(
-            text = "BEWSOA FLOW",
-            style = MaterialTheme.typography.labelSmall,
-            color = Cyan,
-            letterSpacing = 3.sp
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = state.date.format(headerDate),
-            style = MaterialTheme.typography.headlineLarge,
-            color = TextBright
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = "BEWSOA FLOW",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Cyan,
+                    letterSpacing = 3.sp
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = state.date.format(headerDate),
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = TextBright
+                )
+            }
+            IconButton(onClick = onOpenAlerts) {
+                Icon(
+                    Icons.Rounded.Notifications,
+                    contentDescription = "Alerts",
+                    tint = TextDim
+                )
+            }
+        }
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Chip(WeeklyProgram.dayLabel(state.date), Violet)
             Chip("🔥 ${state.streak.current} day streak", Amber)
         }
+    }
+}
+
+/**
+ * "●●○ 2 of 3 skips left". The budget has to be on screen: an invisible cap is
+ * just a surprise, and a visible one is what keeps a skip feeling like a real
+ * decision rather than a free pass.
+ */
+@Composable
+private fun SkipBudgetLabel(budget: SkipBudget) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        repeat(budget.cap) { i ->
+            Box(
+                Modifier
+                    .padding(end = 3.dp)
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(if (i < budget.remaining) Cyan else Outline)
+            )
+        }
+        Spacer(Modifier.width(5.dp))
+        Text(
+            text = if (budget.exhausted) {
+                "no skips left"
+            } else {
+                "${budget.remaining} of ${budget.cap} skips"
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = TextDim
+        )
     }
 }
 
@@ -431,10 +504,17 @@ private fun CatchUpRow(item: BlockWithStatus, onLog: () -> Unit) {
 }
 
 @Composable
-private fun BlockCard(item: BlockWithStatus, now: LocalTime, onToggle: () -> Unit) {
+private fun BlockCard(
+    item: BlockWithStatus,
+    now: LocalTime,
+    onToggle: () -> Unit,
+    onSkip: () -> Unit,
+    onUnskip: () -> Unit
+) {
     val block = item.block
-    val isCurrent = now >= block.start && now < block.end
-    val isPastUndone = !item.done && block.counted && now >= block.end
+    val isCurrent = now >= block.start && now < block.end && !item.skipped
+    // A skipped block can't be "not logged yet" — that's the entire point.
+    val isPastUndone = !item.done && !item.skipped && block.counted && now >= block.end
     val accent = block.track.color()
 
     GlowCard(accent = if (isCurrent) accent else null) {
@@ -449,7 +529,9 @@ private fun BlockCard(item: BlockWithStatus, now: LocalTime, onToggle: () -> Uni
                     Modifier
                         .width(2.dp)
                         .height(16.dp)
-                        .background(accent.copy(alpha = 0.5f))
+                        .background(
+                            if (item.skipped) Outline else accent.copy(alpha = 0.5f)
+                        )
                 )
                 Text(
                     formatTime(block.end),
@@ -462,10 +544,14 @@ private fun BlockCard(item: BlockWithStatus, now: LocalTime, onToggle: () -> Uni
                 Text(
                     "${block.track.emoji} ${block.title}",
                     style = MaterialTheme.typography.titleMedium,
-                    color = if (item.done) TextDim else TextBright,
-                    textDecoration = if (item.done) TextDecoration.LineThrough else null
+                    color = if (item.done || item.skipped) TextDim else TextBright,
+                    textDecoration = if (item.done || item.skipped) {
+                        TextDecoration.LineThrough
+                    } else {
+                        null
+                    }
                 )
-                if (block.note.isNotEmpty()) {
+                if (block.note.isNotEmpty() && !item.skipped) {
                     Spacer(Modifier.height(3.dp))
                     Text(
                         block.note,
@@ -473,6 +559,14 @@ private fun BlockCard(item: BlockWithStatus, now: LocalTime, onToggle: () -> Uni
                         color = TextDim,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (item.skipped) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Skipped today · doesn't count against you",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextDim
                     )
                 }
                 if (isPastUndone) {
@@ -486,17 +580,43 @@ private fun BlockCard(item: BlockWithStatus, now: LocalTime, onToggle: () -> Uni
             }
             if (block.counted) {
                 Spacer(Modifier.width(6.dp))
-                IconButton(onClick = onToggle) {
-                    Icon(
-                        imageVector = if (item.done) {
-                            Icons.Rounded.CheckCircle
-                        } else {
-                            Icons.Rounded.RadioButtonUnchecked
-                        },
-                        contentDescription = if (item.done) "Mark as not done" else "Mark as done",
-                        tint = if (item.done) Mint else TextDim,
-                        modifier = Modifier.size(30.dp)
-                    )
+                if (item.skipped) {
+                    TextButton(onClick = onUnskip) {
+                        Text(
+                            "Undo",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Cyan
+                        )
+                    }
+                } else {
+                    // Skipping is only offered for something not already done —
+                    // there's nothing to excuse once you've finished it.
+                    if (!item.done) {
+                        IconButton(onClick = onSkip) {
+                            Icon(
+                                imageVector = Icons.Rounded.Block,
+                                contentDescription = "Skip today",
+                                tint = TextDim,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    IconButton(onClick = onToggle) {
+                        Icon(
+                            imageVector = if (item.done) {
+                                Icons.Rounded.CheckCircle
+                            } else {
+                                Icons.Rounded.RadioButtonUnchecked
+                            },
+                            contentDescription = if (item.done) {
+                                "Mark as not done"
+                            } else {
+                                "Mark as done"
+                            },
+                            tint = if (item.done) Mint else TextDim,
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
                 }
             }
         }

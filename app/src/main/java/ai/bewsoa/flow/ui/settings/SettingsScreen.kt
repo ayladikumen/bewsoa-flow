@@ -2,6 +2,7 @@ package ai.bewsoa.flow.ui.settings
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
@@ -30,6 +32,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -44,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -56,6 +60,8 @@ import ai.bewsoa.flow.ui.components.SectionHeader
 import ai.bewsoa.flow.ui.theme.Coral
 import ai.bewsoa.flow.ui.theme.Cyan
 import ai.bewsoa.flow.ui.theme.Mint
+import ai.bewsoa.flow.ui.share.ExportFormat
+import ai.bewsoa.flow.ui.share.Sharing
 import ai.bewsoa.flow.ui.theme.Outline
 import ai.bewsoa.flow.ui.theme.Palette
 import ai.bewsoa.flow.ui.theme.Palettes
@@ -72,9 +78,11 @@ private val updatedStamp = DateTimeFormatter.ofPattern("MMM d, HH:mm", Locale.US
 
 @Composable
 fun SettingsScreen(
+    onOpenAlerts: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     Column(
         modifier = Modifier
@@ -89,11 +97,28 @@ fun SettingsScreen(
             color = TextBright
         )
 
-        Text(
-            "Notification settings live in the Alerts tab.",
-            style = MaterialTheme.typography.bodySmall,
-            color = TextDim
-        )
+        GlowCard(modifier = Modifier.clickable(onClick = onOpenAlerts)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Alerts",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = TextBright
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Reminders, motivation, and what you've been sent.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextDim
+                    )
+                }
+                Icon(
+                    Icons.AutoMirrored.Rounded.ArrowForward,
+                    contentDescription = null,
+                    tint = TextDim
+                )
+            }
+        }
 
         GlowCard {
             SectionHeader("Appearance")
@@ -231,6 +256,23 @@ fun SettingsScreen(
             }
         }
 
+        ExportCard(
+            exporting = ui.exporting,
+            onExport = { format ->
+                viewModel.exportData(format) { filename, content ->
+                    runCatching {
+                        val uri = Sharing.writeExport(context, filename, content)
+                        Sharing.shareFile(
+                            context = context,
+                            uri = uri,
+                            mimeType = Sharing.mimeFor(format),
+                            subject = filename
+                        )
+                    }
+                }
+            }
+        )
+
         GlowCard {
             SectionHeader("About")
             Spacer(Modifier.height(8.dp))
@@ -244,6 +286,49 @@ fun SettingsScreen(
                 "The daily engine behind Bewsoa AI. One weekly program, tracked daily, " +
                     "measured weekly — and an AI coach that redrafts next week from what " +
                     "actually happened. One rule: never miss twice.",
+                style = MaterialTheme.typography.bodySmall,
+                color = TextDim
+            )
+        }
+    }
+}
+
+/**
+ * Export lives here as well as in Chat: the data is the user's, and reaching it
+ * shouldn't require asking an AI for it.
+ */
+@Composable
+private fun ExportCard(exporting: Boolean, onExport: (ExportFormat) -> Unit) {
+    GlowCard {
+        SectionHeader("Your data")
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "Everything from the last 90 days — blocks, tasks and reviews.",
+            style = MaterialTheme.typography.bodySmall,
+            color = TextDim
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ExportFormat.entries.forEach { format ->
+                OutlinedButton(
+                    onClick = { onExport(format) },
+                    enabled = !exporting,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, Outline)
+                ) {
+                    Text(
+                        format.label,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (exporting) TextDim else TextBright
+                    )
+                }
+            }
+        }
+        if (exporting) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Collecting your history…",
                 style = MaterialTheme.typography.bodySmall,
                 color = TextDim
             )

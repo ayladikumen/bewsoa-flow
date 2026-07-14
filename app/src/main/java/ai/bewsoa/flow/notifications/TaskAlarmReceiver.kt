@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import ai.bewsoa.flow.data.ProgramRepository
+import ai.bewsoa.flow.data.db.CompletionState
 import ai.bewsoa.flow.data.SettingsRepository
 import ai.bewsoa.flow.data.WeeklyProgram
 import ai.bewsoa.flow.widget.Widgets
@@ -29,7 +30,10 @@ class TaskAlarmReceiver : BroadcastReceiver() {
                 // A block just ended — the widgets' "current block" moved on.
                 Widgets.refreshAll(context)
                 val block = WeeklyProgram.blockById(date, taskId) ?: return@launch
-                if (ProgramRepository.get(context).isDone(date, taskId)) return@launch
+                // Nothing to nag about if it's done — or if the user already
+                // excused it for today.
+                val state = ProgramRepository.get(context).getState(date, taskId)
+                if (state == CompletionState.DONE || state == CompletionState.SKIPPED) return@launch
                 val offset = SettingsRepository.get(context).reminderOffsetMinutes.first()
                 NotificationHelper.showTaskEnd(context, block, date, offset)
             } finally {

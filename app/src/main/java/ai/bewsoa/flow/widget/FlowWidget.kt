@@ -46,8 +46,11 @@ class FlowWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val repo = ProgramRepository.get(context)
         val today = LocalDate.now()
-        val counted = repo.blocksFor(today).filter { it.counted }
         val doneIds = repo.getDoneIds(today)
+        val skippedIds = repo.getSkippedIds(today)
+        // Dropping skipped blocks here fixes the ratio *and* stops the widget
+        // offering an excused block as what's up next.
+        val counted = repo.blocksFor(today).filter { it.counted && it.id !in skippedIds }
         val now = LocalTime.now()
         val palette = Widgets.palette(context)
 

@@ -1,5 +1,6 @@
 package ai.bewsoa.flow.data
 
+import ai.bewsoa.flow.data.db.CompletionState
 import ai.bewsoa.flow.data.db.TaskCompletionEntity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -28,7 +29,20 @@ class InsightsTest {
     private val today: LocalDate = LocalDate.of(2026, 7, 6)
 
     private fun row(date: LocalDate, id: String, done: Boolean) =
-        TaskCompletionEntity(date.toString(), id, done, if (done) 1L else null)
+        TaskCompletionEntity(
+            date = date.toString(),
+            taskId = id,
+            state = if (done) CompletionState.DONE.name else CompletionState.PENDING.name,
+            completedAt = if (done) 1L else null
+        )
+
+    private fun skipped(date: LocalDate, id: String) =
+        TaskCompletionEntity(
+            date = date.toString(),
+            taskId = id,
+            state = CompletionState.SKIPPED.name,
+            completedAt = null
+        )
 
     @Test
     fun `no history means no insights`() {
@@ -59,6 +73,29 @@ class InsightsTest {
         val weak = insights.first { it.kind == Insight.Kind.WEAK_SPOT }
         assertTrue(weak.text.contains("Project"))
         assertTrue(weak.text.contains("Thursday"))
+    }
+
+    @Test
+    fun `an excused skip is not evidence of a weak spot`() {
+        // Same shape as the weak-spot case, except Thursday's project block was
+        // explicitly skipped rather than missed. Excused means excused: the app
+        // must not turn "I told you I couldn't" into "you always fail at this".
+        val rows = mutableListOf<TaskCompletionEntity>()
+        var date = today.minusWeeks(4)
+        while (date < today) {
+            rows += row(date, "study", true)
+            if (date.dayOfWeek == DayOfWeek.THURSDAY) {
+                rows += skipped(date, "project")
+            } else {
+                rows += row(date, "project", true)
+            }
+            date = date.plusDays(1)
+        }
+        val insights = Insights.compute(today, rows, blocksFor)
+        assertTrue(
+            "skipped blocks must not surface as weak spots, got: $insights",
+            insights.none { it.kind == Insight.Kind.WEAK_SPOT }
+        )
     }
 
     @Test

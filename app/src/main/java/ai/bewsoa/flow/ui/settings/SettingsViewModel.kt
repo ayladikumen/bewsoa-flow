@@ -5,16 +5,24 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import ai.bewsoa.flow.data.AiProgramUpdater
 import ai.bewsoa.flow.data.CustomProgram
+import ai.bewsoa.flow.data.Export
+import ai.bewsoa.flow.data.ExportBundle
+import ai.bewsoa.flow.data.Insights
 import ai.bewsoa.flow.data.ProgramDiff
+import ai.bewsoa.flow.data.ProgramRepository
 import ai.bewsoa.flow.data.SettingsRepository
+import ai.bewsoa.flow.data.TaskRepository
 import ai.bewsoa.flow.data.WeeklyProgram
 import ai.bewsoa.flow.notifications.TaskAlarmScheduler
+import ai.bewsoa.flow.ui.share.ExportFormat
+import ai.bewsoa.flow.ui.share.Sharing
 import ai.bewsoa.flow.widget.Widgets
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 data class ProgramUiState(
     val mdText: String = "",
@@ -26,6 +34,7 @@ data class ProgramUiState(
     val customActive: Boolean = false,
     val updatedAt: Long = 0L,
     val loading: Boolean = false,
+    val exporting: Boolean = false,
     val error: String? = null,
     val justUpdated: Boolean = false,
     /** Short "what changed" lines, shown only right after a successful rebuild. */
@@ -148,6 +157,51 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Builds an export of the last [EXPORT_DAYS] days and hands the finished
+     * text back through [onReady]; the screen owns the file write and the share
+     * sheet, because nothing leaves the device until the user picks a target.
+     */
+    fun exportData(format: ExportFormat, onReady: (String, String) -> Unit) {
+        if (_ui.value.exporting) return
+        _ui.value = _ui.value.copy(exporting = true, error = null)
+        viewModelScope.launch {
+            runCatching {
+                val app = getApplication<Application>()
+                val programs = ProgramRepository.get(app)
+                val tasks = TaskRepository.get(app)
+                val to = LocalDate.now()
+                val from = to.minusDays(EXPORT_DAYS)
+                val bundle = ExportBundle(
+                    from = from,
+                    to = to,
+                    completions = programs.getRange(from, to),
+                    tasks = tasks.getRange(from, to),
+                    reviews = programs.observeReviews().first(),
+                    programJson = settings.programJson.first()
+                )
+                val content = when (format) {
+                    ExportFormat.CSV -> Export.toCsv(bundle, WeeklyProgram::blocksFor)
+                    ExportFormat.JSON -> Export.toJson(bundle, WeeklyProgram::blocksFor)
+                    ExportFormat.MARKDOWN -> Export.toMarkdown(
+                        bundle,
+                        WeeklyProgram::blocksFor,
+                        Insights.compute(to, bundle.completions, WeeklyProgram::blocksFor)
+                    )
+                }
+                "bewsoa-flow-$to.${Sharing.extensionFor(format)}" to content
+            }.onSuccess { (name, content) ->
+                _ui.value = _ui.value.copy(exporting = false)
+                onReady(name, content)
+            }.onFailure { e ->
+                _ui.value = _ui.value.copy(
+                    exporting = false,
+                    error = e.message ?: "Export failed."
+                )
+            }
+        }
+    }
+
     fun resetToBuiltIn() {
         viewModelScope.launch {
             settings.clearProgram()
@@ -162,5 +216,10 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                 diff = null
             )
         }
+    }
+
+    companion object {
+        /** Matches ProgramRepository's streak lookback — the app's whole memory. */
+        private const val EXPORT_DAYS = 90L
     }
 }

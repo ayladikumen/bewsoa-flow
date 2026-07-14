@@ -3,7 +3,18 @@ package ai.bewsoa.flow.data
 import ai.bewsoa.flow.data.db.TaskCompletionEntity
 import java.time.LocalDate
 
-data class DayStat(val date: LocalDate, val planned: Int, val done: Int) {
+/**
+ * @param planned counted blocks *minus* those skipped — the excused-skip
+ *        contract. A skipped block is not a miss, so it cannot sit in the
+ *        denominator; it also isn't a win, so it never lands in [done].
+ * @param skipped kept for the UI ("2 of 3 skips left"), never for the ratio.
+ */
+data class DayStat(
+    val date: LocalDate,
+    val planned: Int,
+    val done: Int,
+    val skipped: Int = 0
+) {
     val ratio: Float get() = if (planned == 0) 0f else done.toFloat() / planned
 }
 
@@ -40,12 +51,23 @@ fun buildWeekStats(weekStart: LocalDate, rows: List<TaskCompletionEntity>): Week
         .filter { it.done }
         .groupBy({ it.date }, { it.taskId })
         .mapValues { (_, ids) -> ids.toSet() }
+    val skippedByDate: Map<String, Set<String>> = rows
+        .filter { it.skipped }
+        .groupBy({ it.date }, { it.taskId })
+        .mapValues { (_, ids) -> ids.toSet() }
 
     val days = (0L..6L).map { shift ->
         val date = weekStart.plusDays(shift)
         val counted = WeeklyProgram.blocksFor(date).filter { it.counted }
+        val skippedIds = skippedByDate[date.toString()].orEmpty()
+        val effective = counted.filterNot { skippedIds.contains(it.id) }
         val doneIds = doneByDate[date.toString()].orEmpty()
-        DayStat(date, counted.size, counted.count { doneIds.contains(it.id) })
+        DayStat(
+            date = date,
+            planned = effective.size,
+            done = effective.count { doneIds.contains(it.id) },
+            skipped = counted.count { skippedIds.contains(it.id) }
+        )
     }
 
     val tracks = STAT_TRACKS.map { track ->
@@ -56,8 +78,11 @@ fun buildWeekStats(weekStart: LocalDate, rows: List<TaskCompletionEntity>): Week
         (0L..6L).forEach { shift ->
             val date = weekStart.plusDays(shift)
             val doneIds = doneByDate[date.toString()].orEmpty()
+            val skippedIds = skippedByDate[date.toString()].orEmpty()
             WeeklyProgram.blocksFor(date)
                 .filter { it.counted && it.track == track }
+                // A skipped block never planned, as far as the stats are concerned.
+                .filterNot { skippedIds.contains(it.id) }
                 .forEach { block ->
                     plannedMin += block.durationMinutes
                     plannedSessions++

@@ -14,11 +14,27 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import ai.bewsoa.flow.data.ProgramRepository
 import ai.bewsoa.flow.ui.AppRoot
 import ai.bewsoa.flow.ui.theme.BewsoaFlowTheme
 import ai.bewsoa.flow.ui.theme.LocalPalette
+import ai.bewsoa.flow.widget.Widgets
+import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 class MainActivity : ComponentActivity() {
+
+    override fun onResume() {
+        super.onResume()
+        // The one place a streak freeze is actually spent. Deliberately not in
+        // computeStreak: that is read from widgets and workers, and a read that
+        // writes from three uncoordinated callers is a data race.
+        lifecycleScope.launch {
+            ProgramRepository.get(applicationContext).settleStreak(LocalDate.now())
+            Widgets.refreshAll(applicationContext)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

@@ -39,8 +39,10 @@ class ProgressWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val repo = ProgramRepository.get(context)
         val today = LocalDate.now()
-        val counted = repo.blocksFor(today).filter { it.counted }
         val doneIds = repo.getDoneIds(today)
+        val skippedIds = repo.getSkippedIds(today)
+        // Excused blocks leave the denominator, so the widget agrees with the app.
+        val counted = repo.blocksFor(today).filter { it.counted && it.id !in skippedIds }
         val now = LocalTime.now()
         val palette = Widgets.palette(context)
 

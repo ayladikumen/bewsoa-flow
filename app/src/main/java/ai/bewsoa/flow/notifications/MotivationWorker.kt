@@ -35,7 +35,9 @@ class MotivationWorker(
             val today = now.toLocalDate()
             val time = now.toLocalTime()
             val doneIds = repo.getDoneIds(today)
-            val blocks = repo.blocksFor(today).filter { it.counted }
+            val skippedIds = repo.getSkippedIds(today)
+            // Never nag about a block the user excused today.
+            val blocks = repo.blocksFor(today).filter { it.counted && it.id !in skippedIds }
             val boost = Motivator.contextual(
                 current = blocks.firstOrNull {
                     time >= it.start && time < it.end && it.id !in doneIds

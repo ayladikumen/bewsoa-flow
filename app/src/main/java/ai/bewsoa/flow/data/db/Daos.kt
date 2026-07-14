@@ -23,6 +23,22 @@ interface CompletionDao {
 
     @Upsert
     suspend fun upsert(completion: TaskCompletionEntity)
+
+    // The weekly skip budget is derived from the rows themselves rather than
+    // stored as a counter, so the Monday reset costs nothing and can't drift
+    // out of sync with the skips it's supposed to be counting.
+
+    @Query(
+        "SELECT COUNT(*) FROM task_completions " +
+            "WHERE date BETWEEN :from AND :to AND state = 'SKIPPED'"
+    )
+    fun observeSkipCount(from: String, to: String): Flow<Int>
+
+    @Query(
+        "SELECT COUNT(*) FROM task_completions " +
+            "WHERE date BETWEEN :from AND :to AND state = 'SKIPPED'"
+    )
+    suspend fun getSkipCount(from: String, to: String): Int
 }
 
 @Dao

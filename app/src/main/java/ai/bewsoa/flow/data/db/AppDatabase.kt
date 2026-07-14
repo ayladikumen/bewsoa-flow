@@ -13,9 +13,13 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         WeeklyReviewEntity::class,
         NotificationLogEntity::class,
         TaskEntity::class,
-        SubtaskEntity::class
+        SubtaskEntity::class,
+        XpEventEntity::class,
+        StreakFreezeEntity::class,
+        FocusSessionEntity::class,
+        ChatMessageEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -24,6 +28,10 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun reviewDao(): ReviewDao
     abstract fun notificationLogDao(): NotificationLogDao
     abstract fun taskDao(): TaskDao
+    abstract fun xpDao(): XpDao
+    abstract fun streakFreezeDao(): StreakFreezeDao
+    abstract fun focusDao(): FocusDao
+    abstract fun chatDao(): ChatDao
 
     companion object {
         @Volatile
@@ -80,13 +88,26 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v4 rewrote task_completions (done: Boolean → state: String) and added
+         * the XP, freeze, focus and chat tables.
+         *
+         * There is deliberately no MIGRATION_3_4. v4 is a clean break: upgrading
+         * from v1.2 DROPS all completion history, streaks, tasks and reviews.
+         * That is a decision, not an oversight — Settings → Your data exports
+         * everything first, and that is the only way to keep any of it.
+         */
         fun getInstance(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "bewsoa_flow.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { instance = it }
+                )
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .fallbackToDestructiveMigration()
+                    .build()
+                    .also { instance = it }
             }
     }
 }
