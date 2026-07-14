@@ -63,31 +63,7 @@ interface StreakFreezeDao {
     suspend fun countUsed(): Int
 }
 
-@Dao
-interface FocusDao {
-
-    @Insert
-    suspend fun insert(session: FocusSessionEntity): Long
-
-    @androidx.room.Update
-    suspend fun update(session: FocusSessionEntity)
-
-    @Query("SELECT * FROM focus_sessions WHERE id = :id LIMIT 1")
-    suspend fun get(id: Long): FocusSessionEntity?
-
-    /** The session to restore after process death: started, never ended. */
-    @Query("SELECT * FROM focus_sessions WHERE endedAt IS NULL ORDER BY startedAt DESC LIMIT 1")
-    suspend fun getRunning(): FocusSessionEntity?
-
-    @Query("SELECT * FROM focus_sessions WHERE date = :date ORDER BY startedAt DESC")
-    fun observeForDate(date: String): Flow<List<FocusSessionEntity>>
-
-    @Query("SELECT * FROM focus_sessions WHERE date BETWEEN :from AND :to ORDER BY startedAt")
-    fun observeRange(from: String, to: String): Flow<List<FocusSessionEntity>>
-
-    @Query("SELECT * FROM focus_sessions WHERE date BETWEEN :from AND :to ORDER BY startedAt")
-    suspend fun getRange(from: String, to: String): List<FocusSessionEntity>
-}
+// FocusDao lives in FocusDao.kt — see the note in XpEntities.kt.
 
 @Dao
 interface ChatDao {

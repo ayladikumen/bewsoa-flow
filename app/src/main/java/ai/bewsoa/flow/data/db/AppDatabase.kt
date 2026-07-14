@@ -16,7 +16,6 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SubtaskEntity::class,
         XpEventEntity::class,
         StreakFreezeEntity::class,
-        FocusSessionEntity::class,
         ChatMessageEntity::class
     ],
     version = 4,
@@ -30,7 +29,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
     abstract fun xpDao(): XpDao
     abstract fun streakFreezeDao(): StreakFreezeDao
-    abstract fun focusDao(): FocusDao
     abstract fun chatDao(): ChatDao
 
     companion object {

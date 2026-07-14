@@ -63,30 +63,8 @@ data class StreakFreezeEntity(
     val usedAt: Long
 )
 
-/**
- * One deep-work session. Written on start and updated as it runs so a killed
- * process resumes correctly rather than silently losing the session.
- *
- * @param activeSeconds excludes paused time — this, not wall clock, is what XP
- *        is paid on.
- */
-@Entity(tableName = "focus_sessions", indices = [Index(value = ["date"])])
-data class FocusSessionEntity(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val date: String,
-    val startedAt: Long,
-    val endedAt: Long?,
-    val plannedMinutes: Int,
-    val activeSeconds: Int,
-    /** The program block this session is against, if any. */
-    val blockId: String? = null,
-    /** The user task this session is against, if any. */
-    val taskId: Long? = null,
-    val label: String,
-    val track: String? = null,
-    /** True only when the user finished or ran the clock out — not on abandon. */
-    val completed: Boolean = false
-)
+// Focus sessions live in FocusEntities.kt / FocusDao.kt — the Deep Focus
+// feature already owns that table, and XP reads it rather than duplicating it.
 
 /**
  * One turn in the AI chat. Persisted so the transcript survives process death.
