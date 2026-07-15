@@ -40,13 +40,23 @@ import ai.bewsoa.flow.ui.theme.Violet
  */
 
 /** Bump alongside versionCode so the What's new overlay shows once per release. */
-const val GUIDE_VERSION = 5
+const val GUIDE_VERSION = 6
 
 private data class Release(val version: String, val changes: List<String>)
 
 private data class GuideSection(val emoji: String, val title: String, val points: List<String>)
 
 private val RELEASES = listOf(
+    Release(
+        "2.0 (beta)",
+        listOf(
+            "A whole new look: flat surfaces instead of glowing cards, so the numbers are the loudest thing on screen.",
+            "Five tabs instead of six. Review, Alerts and this Guide now live inside the screens they belong to.",
+            "Skip a block for today: it's excused, not missed — it leaves the maths entirely, so it can't dent your streak. Three a week, resets Monday.",
+            "Export everything from Settings → Your data: CSV, JSON or Markdown, straight to the share sheet.",
+            "Still being built: XP and levels, the full weekly table, and the AI chat tab."
+        )
+    ),
     Release(
         "1.4",
         listOf(

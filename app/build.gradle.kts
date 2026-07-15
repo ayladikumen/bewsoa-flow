@@ -14,8 +14,10 @@ android {
         minSdk = 26
         targetSdk = 34
         // Must stay ahead of the installed build (5) or install is a downgrade.
+        // Keep ui/guide/GuideScreen.kt's GUIDE_VERSION in step with versionCode,
+        // or the What's new overlay silently never fires.
         versionCode = 6
-        versionName = "2.0.0-dev"
+        versionName = "2.0.0-beta.1"
     }
 
     buildTypes {
