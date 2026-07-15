@@ -19,7 +19,8 @@ import java.time.LocalDate
  */
 class TaskRepository private constructor(
     private val db: AppDatabase,
-    private val settings: SettingsRepository
+    private val settings: SettingsRepository,
+    private val xp: XpRepository
 ) {
 
     private val dao get() = db.taskDao()
@@ -100,6 +101,9 @@ class TaskRepository private constructor(
         dao.updateTask(
             task.copy(done = done, completedAt = if (done) System.currentTimeMillis() else null)
         )
+        val date = scheduledDateOf(task)
+        if (done) xp.awardTask(date, task.id, task.estimatedMinutes)
+        else xp.revokeTask(date, task.id)
         // Only originals spawn reviews, and only once.
         if (done && task.needsReview && task.reviewParentId == null) spawnReviews(task)
     }
@@ -116,6 +120,8 @@ class TaskRepository private constructor(
     suspend fun deleteTask(task: TaskEntity) {
         dao.deleteSubtasksOf(task.id)
         dao.deleteTask(task)
+        // A deleted task must not leave ghost XP in the ledger.
+        xp.revokeTask(scheduledDateOf(task), task.id)
     }
 
     /**
@@ -123,8 +129,9 @@ class TaskRepository private constructor(
      * routine (and streak) is the long-term contract, individual tasks can slide.
      */
     suspend fun moveToTomorrow(task: TaskEntity) {
-        val current = runCatching { LocalDate.parse(task.scheduledDate) }
-            .getOrDefault(LocalDate.now())
+        val current = scheduledDateOf(task)
+        // Moving resets done=false, so any award tied to the old day comes back.
+        xp.revokeTask(current, task.id)
         val next = current.plusDays(1).toString()
         dao.updateTask(
             task.copy(
@@ -163,6 +170,9 @@ class TaskRepository private constructor(
 
     // Helpers -----------------------------------------------------------------
 
+    private fun scheduledDateOf(task: TaskEntity): LocalDate =
+        runCatching { LocalDate.parse(task.scheduledDate) }.getOrDefault(LocalDate.now())
+
     private fun subtasksFor(taskId: Long, titles: List<String>): List<SubtaskEntity> =
         titles.mapIndexed { i, t -> SubtaskEntity(taskId = taskId, title = t, sortOrder = i) }
 
@@ -185,7 +195,8 @@ class TaskRepository private constructor(
             instance ?: synchronized(this) {
                 instance ?: TaskRepository(
                     AppDatabase.getInstance(context),
-                    SettingsRepository.get(context)
+                    SettingsRepository.get(context),
+                    XpRepository.get(context)
                 ).also { instance = it }
             }
     }

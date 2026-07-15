@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import ai.bewsoa.flow.data.CustomProgram
 import ai.bewsoa.flow.data.DayBlockOrder
 import ai.bewsoa.flow.data.FocusRepository
+import ai.bewsoa.flow.data.LevelInfo
 import ai.bewsoa.flow.data.ProgramDiff
 import ai.bewsoa.flow.data.ProgramRepository
 import ai.bewsoa.flow.data.SettingsRepository
@@ -14,6 +15,8 @@ import ai.bewsoa.flow.data.StreakInfo
 import ai.bewsoa.flow.data.TaskBlock
 import ai.bewsoa.flow.data.Track
 import ai.bewsoa.flow.data.WeeklyProgram
+import ai.bewsoa.flow.data.Xp
+import ai.bewsoa.flow.data.XpRepository
 import ai.bewsoa.flow.notifications.TaskAlarmScheduler
 import ai.bewsoa.flow.widget.Widgets
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -38,6 +41,15 @@ data class BlockWithStatus(
 /** A coach draft waiting for the user's verdict. */
 data class CoachProposal(val note: String, val diff: List<String>, val json: String)
 
+/** Today's spot in the XP economy: earned so far, the day's goal, the level. */
+data class XpToday(
+    val earned: Int = 0,
+    val goal: Int = 40,
+    val level: LevelInfo = Xp.levelFor(0)
+) {
+    val goalHit: Boolean get() = earned >= goal
+}
+
 data class TodayUiState(
     val date: LocalDate,
     val blocks: List<BlockWithStatus> = emptyList(),
@@ -48,7 +60,8 @@ data class TodayUiState(
     val yesterdayMissed: List<BlockWithStatus> = emptyList(),
     /** Deep-work track blocks + confirmed Focus sessions completed today, in minutes. */
     val deepWorkMinutes: Int = 0,
-    val skipBudget: SkipBudget = SkipBudget(0, ProgramRepository.SKIP_CAP_PER_WEEK)
+    val skipBudget: SkipBudget = SkipBudget(0, ProgramRepository.SKIP_CAP_PER_WEEK),
+    val xp: XpToday = XpToday()
 ) {
     /**
      * [countedCount] already excludes today's skips, so this is the honest
@@ -66,6 +79,7 @@ class TodayViewModel(
 
     private val settings = SettingsRepository.get(app)
     private val focusRepo = FocusRepository.get(app)
+    private val xpRepo = XpRepository.get(app)
 
     private val date = MutableStateFlow(LocalDate.now())
 
@@ -116,8 +130,10 @@ class TodayViewModel(
             combine(
                 repo.observeRange(yesterday, day),
                 focusRepo.observeForDate(day),
-                repo.observeSkipBudget(day)
-            ) { rows, focusSessions, budget ->
+                repo.observeSkipBudget(day),
+                xpRepo.observeDayTotal(day),
+                xpRepo.observeTotal()
+            ) { rows, focusSessions, budget, dayXp, totalXp ->
                 val doneToday = rows.filter { it.date == day.toString() && it.done }
                     .map { it.taskId }.toSet()
                 val skippedToday = rows.filter { it.date == day.toString() && it.skipped }
@@ -153,7 +169,12 @@ class TodayViewModel(
                     streak = repo.computeStreak(day),
                     yesterdayMissed = yesterdayMissed,
                     deepWorkMinutes = deepWork,
-                    skipBudget = budget
+                    skipBudget = budget,
+                    xp = XpToday(
+                        earned = dayXp,
+                        goal = Xp.dailyGoal(repo.blocksFor(day)),
+                        level = Xp.levelFor(totalXp)
+                    )
                 )
             }
         }

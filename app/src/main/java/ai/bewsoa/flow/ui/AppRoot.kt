@@ -39,9 +39,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import ai.bewsoa.flow.data.SettingsRepository
+import ai.bewsoa.flow.data.XpRepository
 import ai.bewsoa.flow.ui.alerts.AlertsScreen
 import ai.bewsoa.flow.ui.chat.ChatScreen
 import ai.bewsoa.flow.ui.components.AppBackground
+import ai.bewsoa.flow.ui.components.CelebrationHost
 import ai.bewsoa.flow.ui.focus.FocusScreen
 import ai.bewsoa.flow.ui.guide.GUIDE_VERSION
 import ai.bewsoa.flow.ui.guide.GuideScreen
@@ -142,6 +144,10 @@ fun AppRoot() {
                 }
             }
         }
+        // Above everything, including the bottom bar: a level-up earned from a
+        // widget or a chest tap celebrates the same way no matter the screen.
+        val xp = remember { XpRepository.get(context) }
+        CelebrationHost(xp.celebrations)
     }
 }
 
