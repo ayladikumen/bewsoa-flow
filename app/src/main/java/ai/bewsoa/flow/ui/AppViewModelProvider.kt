@@ -8,6 +8,7 @@ import ai.bewsoa.flow.data.FocusRepository
 import ai.bewsoa.flow.data.ProgramRepository
 import ai.bewsoa.flow.data.SettingsRepository
 import ai.bewsoa.flow.data.TaskRepository
+import ai.bewsoa.flow.data.XpRepository
 import ai.bewsoa.flow.ui.alerts.AlertsViewModel
 import ai.bewsoa.flow.ui.focus.FocusViewModel
 import ai.bewsoa.flow.ui.progress.ProgressViewModel
@@ -28,7 +29,12 @@ object AppViewModelProvider {
         }
         initializer {
             val app = this[APPLICATION_KEY] as BewsoaFlowApp
-            ProgressViewModel(ProgramRepository.get(app), FocusRepository.get(app))
+            ProgressViewModel(
+                app,
+                ProgramRepository.get(app),
+                FocusRepository.get(app),
+                XpRepository.get(app)
+            )
         }
         initializer {
             val app = this[APPLICATION_KEY] as BewsoaFlowApp

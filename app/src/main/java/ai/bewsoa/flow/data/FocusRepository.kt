@@ -26,7 +26,8 @@ data class ActiveFocus(val label: String, val startedAt: Long, val plannedMinute
 class FocusRepository private constructor(
     private val context: Context,
     private val db: AppDatabase,
-    private val settings: SettingsRepository
+    private val settings: SettingsRepository,
+    private val xp: XpRepository
 ) {
 
     val activeSession: Flow<ActiveFocus?> = combine(
@@ -68,16 +69,20 @@ class FocusRepository private constructor(
      */
     suspend fun complete(creditedMinutes: Int? = null) {
         val active = activeSession.first() ?: return
-        db.focusDao().insert(
+        val date = LocalDate.now()
+        val minutes = (creditedMinutes ?: active.plannedMinutes).coerceAtLeast(1)
+        val sessionId = db.focusDao().insert(
             FocusSessionEntity(
-                date = LocalDate.now().toString(),
+                date = date.toString(),
                 label = active.label,
-                minutes = (creditedMinutes ?: active.plannedMinutes).coerceAtLeast(1),
+                minutes = minutes,
                 plannedMinutes = active.plannedMinutes,
                 startedAt = active.startedAt,
                 completedAt = System.currentTimeMillis()
             )
         )
+        // XP only on a confirmed finish — abandon() pays nothing, by design.
+        xp.awardFocus(date, sessionId, minutes)
         clear()
     }
 
@@ -99,7 +104,8 @@ class FocusRepository private constructor(
                 instance ?: FocusRepository(
                     context.applicationContext,
                     AppDatabase.getInstance(context),
-                    SettingsRepository.get(context)
+                    SettingsRepository.get(context),
+                    XpRepository.get(context)
                 ).also { instance = it }
             }
     }

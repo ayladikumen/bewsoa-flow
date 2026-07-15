@@ -1,5 +1,6 @@
 package ai.bewsoa.flow.ui.progress
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,7 +23,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,7 +64,20 @@ fun ProgressScreen(
     viewModel: ProgressViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val plan by viewModel.planState.collectAsStateWithLifecycle()
     val stats = state.stats
+
+    // Same rule as Today: a refused skip has to say why.
+    val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        viewModel.skipRejected.collect {
+            Toast.makeText(
+                context,
+                "No skips left that week — they reset Monday.",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -83,7 +99,26 @@ fun ProgressScreen(
                 )
             }
         }
+        item { SectionHeader("The plan") }
+        item {
+            PlanCard(
+                state = plan,
+                onSelectDay = viewModel::selectDay,
+                onShiftWeek = viewModel::shiftWeek,
+                onJumpToday = viewModel::jumpToToday,
+                onToggle = viewModel::setPlanDone,
+                onSkip = viewModel::skipPlanBlock,
+                onUnskip = viewModel::unskipPlanBlock
+            )
+        }
         item { StreakCard(state.streak) }
+        item { LevelCard(state.xp) }
+        state.xp.chest?.let { chest ->
+            item { ChestCard(chest, viewModel::openChest) }
+        }
+        state.xp.lastChest?.let { chest ->
+            item { LastChestCard(chest, viewModel::openLastChest) }
+        }
         if (state.insights.isNotEmpty()) {
             item { InsightsCard(state.insights) }
         }

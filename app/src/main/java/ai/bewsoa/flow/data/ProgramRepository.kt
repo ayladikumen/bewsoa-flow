@@ -21,7 +21,10 @@ data class SkipBudget(val used: Int, val cap: Int) {
     val exhausted: Boolean get() = remaining == 0
 }
 
-class ProgramRepository private constructor(private val db: AppDatabase) {
+class ProgramRepository private constructor(
+    private val db: AppDatabase,
+    private val xp: XpRepository
+) {
 
     fun blocksFor(date: LocalDate): List<TaskBlock> = WeeklyProgram.blocksFor(date)
 
@@ -46,6 +49,7 @@ class ProgramRepository private constructor(private val db: AppDatabase) {
         state: CompletionState,
         reason: String? = null
     ) {
+        val previous = getState(date, taskId)
         db.completionDao().upsert(
             TaskCompletionEntity(
                 date = date.toString(),
@@ -55,6 +59,14 @@ class ProgramRepository private constructor(private val db: AppDatabase) {
                 skipReason = reason
             )
         )
+        // XP follows the state transition, here and only here, so every caller
+        // (screen, widget, notification action, chat tool) pays out the same.
+        // Skipping neither awards nor penalises — it just returns any prior award.
+        if (state == CompletionState.DONE && previous != CompletionState.DONE) {
+            blocksFor(date).firstOrNull { it.id == taskId }?.let { xp.awardBlock(date, it) }
+        } else if (state != CompletionState.DONE && previous == CompletionState.DONE) {
+            xp.revokeBlock(date, taskId)
+        }
     }
 
     /** Kept so notification actions and widgets don't need to know about states. */
@@ -194,7 +206,10 @@ class ProgramRepository private constructor(private val db: AppDatabase) {
 
         fun get(context: Context): ProgramRepository =
             instance ?: synchronized(this) {
-                instance ?: ProgramRepository(AppDatabase.getInstance(context)).also { instance = it }
+                instance ?: ProgramRepository(
+                    AppDatabase.getInstance(context),
+                    XpRepository.get(context)
+                ).also { instance = it }
             }
     }
 }

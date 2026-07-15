@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import ai.bewsoa.flow.data.ProgramRepository
+import ai.bewsoa.flow.data.XpRepository
 import ai.bewsoa.flow.ui.AppRoot
 import ai.bewsoa.flow.ui.theme.BewsoaFlowTheme
 import ai.bewsoa.flow.ui.theme.LocalPalette
@@ -31,7 +32,9 @@ class MainActivity : ComponentActivity() {
         // computeStreak: that is read from widgets and workers, and a read that
         // writes from three uncoordinated callers is a data race.
         lifecycleScope.launch {
-            ProgramRepository.get(applicationContext).settleStreak(LocalDate.now())
+            val streak = ProgramRepository.get(applicationContext).settleStreak(LocalDate.now())
+            // Milestone bonuses ride the same single-writer moment as the freeze.
+            XpRepository.get(applicationContext).settleMilestones(streak.current)
             Widgets.refreshAll(applicationContext)
         }
     }

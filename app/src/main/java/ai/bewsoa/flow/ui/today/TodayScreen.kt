@@ -63,6 +63,8 @@ import ai.bewsoa.flow.ui.components.GlowCard
 import ai.bewsoa.flow.ui.components.ProgressRing
 import ai.bewsoa.flow.ui.components.SectionHeader
 import ai.bewsoa.flow.ui.components.StatBar
+import ai.bewsoa.flow.ui.components.XpRing
+import ai.bewsoa.flow.ui.theme.LocalPalette
 import ai.bewsoa.flow.ui.formatCountdown
 import ai.bewsoa.flow.ui.formatHours
 import ai.bewsoa.flow.ui.formatTime
@@ -156,6 +158,7 @@ fun TodayScreen(
             }
         }
         item(key = "hero") { HeroCard(state, now) }
+        item(key = "xp") { XpGoalCard(state.xp) }
         item(key = "deepwork") { DeepWorkCard(state) }
 
         val todayMissed = state.blocks.filter {
@@ -465,6 +468,74 @@ private fun HeroCard(state: TodayUiState, now: LocalTime) {
     }
 }
 
+/**
+ * The Duolingo loop, on one card: XP earned toward today's goal, and where the
+ * account stands on the level curve. The goal is derived from the day's actual
+ * plan (80% of a perfect day), so a light Sunday asks for less than a grind
+ * Tuesday.
+ */
+@Composable
+private fun XpGoalCard(xp: XpToday) {
+    val xpColor = LocalPalette.current.xp
+    GlowCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            XpRing(
+                current = xp.earned,
+                goal = xp.goal,
+                modifier = Modifier.size(64.dp),
+                strokeWidth = 7.dp
+            ) {
+                Text("⚡", fontSize = 22.sp)
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "DAILY GOAL",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = xpColor,
+                    letterSpacing = 1.5.sp
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "${xp.earned} / ${xp.goal} XP",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = TextBright
+                )
+                if (xp.goalHit) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "Goal hit — bonus banked ✓",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextDim
+                    )
+                }
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    "LEVEL ${xp.level.index}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = xpColor,
+                    letterSpacing = 1.5.sp
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    xp.level.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = TextBright
+                )
+                Spacer(Modifier.height(6.dp))
+                StatBar(
+                    ratio = xp.level.progress,
+                    color = xpColor,
+                    modifier = Modifier.width(72.dp),
+                    height = 5.dp
+                )
+            }
+        }
+    }
+}
+
 private const val DEEP_WORK_GOAL_MIN = 360 // 6h — a soft daily reference, not a rule.
 
 /** One slim line: focused minutes so far vs the soft goal. Details live in the Guide. */
@@ -583,6 +654,7 @@ private fun BlockCard(
     // A skipped block can't be "not logged yet" — that's the entire point.
     val isPastUndone = !item.done && !item.skipped && block.counted && now >= block.end
     val accent = block.track.color()
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
 
     GlowCard(modifier = modifier, accent = if (isCurrent) accent else null) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -668,7 +740,15 @@ private fun BlockCard(
                             )
                         }
                     }
-                    IconButton(onClick = onToggle) {
+                    IconButton(onClick = {
+                        // The check-off is the core loop — it should be felt, not just seen.
+                        if (!item.done) {
+                            haptics.performHapticFeedback(
+                                androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress
+                            )
+                        }
+                        onToggle()
+                    }) {
                         Icon(
                             imageVector = if (item.done) {
                                 Icons.Rounded.CheckCircle

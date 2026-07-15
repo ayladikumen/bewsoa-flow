@@ -51,10 +51,12 @@ private val RELEASES = listOf(
         "2.0 (beta)",
         listOf(
             "A whole new look: flat surfaces instead of glowing cards, so the numbers are the loudest thing on screen.",
+            "XP and levels: blocks, tasks and focus sessions all pay XP. Hit the daily goal for a bonus, keep 5 days for the weekly chest, and watch the confetti.",
+            "The plan, browsable: Progress now shows any day of any week — times, notes, and what actually happened.",
             "Five tabs instead of six. Review, Alerts and this Guide now live inside the screens they belong to.",
             "Skip a block for today: it's excused, not missed — it leaves the maths entirely, so it can't dent your streak. Three a week, resets Monday.",
             "Export everything from Settings → Your data: CSV, JSON or Markdown, straight to the share sheet.",
-            "Still being built: XP and levels, the full weekly table, and the AI chat tab."
+            "Still being built: the drag-to-edit weekly grid and the AI chat tab."
         )
     ),
     Release(
@@ -108,8 +110,19 @@ private val SECTIONS = listOf(
     GuideSection(
         "📈", "Progress",
         listOf(
+            "The plan: browse any day of any week — ‹ › moves weeks, the strip picks the day. Log or skip right there.",
             "Streak, insights computed from your history, this week's day bars and per-track totals.",
             "Deep focus: the week's confirmed session time, day by day."
+        )
+    ),
+    GuideSection(
+        "⚡", "XP & levels",
+        listOf(
+            "Every finished block pays XP — longer and more mission-critical pays more. Tasks and focus sessions pay a little too.",
+            "The daily goal is 80% of a perfect day, computed from your actual plan. Crossing it banks a +25 bonus.",
+            "Keep 5 days in a week and the chest unlocks — open it yourself on Progress, that tap is the reward.",
+            "Un-checking a block takes its XP back. Skipped blocks never pay and never cost.",
+            "Streak freezes: one earned per 7 kept days (hold max 2). A freeze spends itself to save yesterday when a streak of 3+ would break."
         )
     ),
     GuideSection(
