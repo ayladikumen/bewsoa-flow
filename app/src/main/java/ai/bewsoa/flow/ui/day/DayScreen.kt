@@ -412,7 +412,7 @@ private fun BlockRow(
 ) {
     val palette = LocalPalette.current
     val block = item.block
-    val isCurrent = !item.skipped && now >= block.start && now < block.end
+    val isCurrent = !item.done && !item.skipped && now >= block.start && now < block.end
     val isPastUndone = !item.done && !item.skipped && block.counted && now >= block.end
     val accent = block.track.color()
 
@@ -458,7 +458,7 @@ private fun BlockRow(
             )
         }
         Spacer(Modifier.width(Space.s))
-        if (isCurrent && !item.done) {
+        if (isCurrent) {
             StatusPill("NOW", accent, filled = true)
             Spacer(Modifier.width(Space.s))
         }
