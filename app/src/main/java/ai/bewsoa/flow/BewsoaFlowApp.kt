@@ -32,6 +32,8 @@ class BewsoaFlowApp : Application() {
             settings.programJson.first()?.let { json -> CustomProgram.activate(json) }
             DayBlockOrder.load(settings.dayOrderJson.first())
             DayOverrides.load(settings.dayOverridesJson.first())
+            // Must run before ThemeCache reads, so the first 3.0 frame is Sunrise.
+            settings.migrateThemeToSunriseOnce()
             ThemeCache.initialId = settings.appTheme.first()
         }
         NotificationHelper.createChannels(this)

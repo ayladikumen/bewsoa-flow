@@ -104,6 +104,21 @@ class SettingsRepository private constructor(private val context: Context) {
         context.settingsStore.edit { it[KEY_APP_THEME] = id }
     }
 
+    /**
+     * The 3.0 "new start" happens exactly once: whatever palette an older
+     * version had saved, the first 3.0 launch flips to Sunrise so the redesign
+     * actually greets the user. Their next pick in Profile is final — this
+     * flag guarantees we never override a choice twice.
+     */
+    suspend fun migrateThemeToSunriseOnce() {
+        context.settingsStore.edit {
+            if (it[KEY_SUNRISE_INTRO] != true) {
+                it[KEY_APP_THEME] = DEFAULT_THEME
+                it[KEY_SUNRISE_INTRO] = true
+            }
+        }
+    }
+
     suspend fun setReminderOffset(minutes: Int) {
         context.settingsStore.edit { it[KEY_OFFSET] = minutes.coerceIn(0, 60) }
     }
@@ -216,6 +231,7 @@ class SettingsRepository private constructor(private val context: Context) {
         private val KEY_MOTIVATION = booleanPreferencesKey("motivation_enabled")
         private val KEY_INTENSITY = stringPreferencesKey("motivation_intensity")
         private val KEY_APP_THEME = stringPreferencesKey("app_theme")
+        private val KEY_SUNRISE_INTRO = booleanPreferencesKey("sunrise_intro_done")
         private val KEY_DAY_ORDER = stringPreferencesKey("day_block_order")
         private val KEY_DAY_OVERRIDES = stringPreferencesKey("day_overrides_json")
         private val KEY_CHAT_HISTORY = stringPreferencesKey("chat_history_json")
