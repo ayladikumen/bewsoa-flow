@@ -10,6 +10,7 @@ import ai.bewsoa.flow.data.SettingsRepository
 import ai.bewsoa.flow.data.TaskRepository
 import ai.bewsoa.flow.data.XpRepository
 import ai.bewsoa.flow.ui.alerts.AlertsViewModel
+import ai.bewsoa.flow.ui.chat.ChatViewModel
 import ai.bewsoa.flow.ui.focus.FocusViewModel
 import ai.bewsoa.flow.ui.progress.ProgressViewModel
 import ai.bewsoa.flow.ui.review.ReviewViewModel
@@ -51,6 +52,10 @@ object AppViewModelProvider {
         initializer {
             val app = this[APPLICATION_KEY] as BewsoaFlowApp
             SettingsViewModel(app)
+        }
+        initializer {
+            val app = this[APPLICATION_KEY] as BewsoaFlowApp
+            ChatViewModel(app)
         }
     }
 }

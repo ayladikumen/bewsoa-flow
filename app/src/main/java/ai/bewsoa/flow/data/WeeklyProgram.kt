@@ -14,7 +14,11 @@ import java.time.LocalTime
 object WeeklyProgram {
 
     fun blocksFor(date: LocalDate): List<TaskBlock> {
-        val base = CustomProgram.current?.get(date.dayOfWeek)?.takeIf { it.isNotEmpty() }
+        // Precedence: a one-time day edit from the assistant beats the standing
+        // program (custom or built-in). Alarms, widgets, streak and XP all read
+        // through here, so an override needs no extra wiring anywhere.
+        val base = DayOverrides.forDate(date)
+            ?: CustomProgram.current?.get(date.dayOfWeek)?.takeIf { it.isNotEmpty() }
             ?: builtIn(date)
         // A drag on Today may have re-slotted this date's blocks.
         return DayBlockOrder.applyTo(base, date)
@@ -40,6 +44,7 @@ object WeeklyProgram {
     }
 
     fun dayLabel(date: LocalDate): String = when {
+        DayOverrides.hasOverride(date) -> "Edited for today"
         CustomProgram.current != null -> "My Program"
         date.dayOfWeek == DayOfWeek.SATURDAY -> "TYT Saturday"
         date.dayOfWeek == DayOfWeek.SUNDAY -> "Reset & Build Sunday"

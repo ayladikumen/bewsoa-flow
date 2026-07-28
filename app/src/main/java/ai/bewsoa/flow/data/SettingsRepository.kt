@@ -41,6 +41,26 @@ class SettingsRepository private constructor(private val context: Context) {
         context.settingsStore.edit { it[KEY_DAY_ORDER] = json }
     }
 
+    /** JSON map date → full block list, backing [DayOverrides] (one-time AI edits). */
+    val dayOverridesJson: Flow<String?> =
+        context.settingsStore.data.map { it[KEY_DAY_OVERRIDES] }
+
+    suspend fun setDayOverridesJson(json: String) {
+        context.settingsStore.edit { it[KEY_DAY_OVERRIDES] = json }
+    }
+
+    /** The assistant conversation, serialized by the chat screen. */
+    val chatHistoryJson: Flow<String?> =
+        context.settingsStore.data.map { it[KEY_CHAT_HISTORY] }
+
+    suspend fun setChatHistoryJson(json: String) {
+        context.settingsStore.edit { it[KEY_CHAT_HISTORY] = json }
+    }
+
+    suspend fun clearChatHistory() {
+        context.settingsStore.edit { it.remove(KEY_CHAT_HISTORY) }
+    }
+
     /** Last versionCode whose "What's new" the user has dismissed. */
     val seenVersionCode: Flow<Int> =
         context.settingsStore.data.map { it[KEY_SEEN_VERSION] ?: 0 }
@@ -187,7 +207,9 @@ class SettingsRepository private constructor(private val context: Context) {
         const val INTENSITY_BEAST = "beast"
         const val PROVIDER_CLAUDE = "claude"
         const val PROVIDER_GEMINI = "gemini"
-        const val DEFAULT_THEME = "neon_night"
+        // The 3.0 "new start": Sunrise is the default unless the user has
+        // explicitly picked another palette in Settings.
+        const val DEFAULT_THEME = "sunrise"
 
         private val KEY_OFFSET = intPreferencesKey("reminder_offset_minutes")
         private val KEY_CAPACITY = intPreferencesKey("daily_capacity_minutes")
@@ -195,6 +217,8 @@ class SettingsRepository private constructor(private val context: Context) {
         private val KEY_INTENSITY = stringPreferencesKey("motivation_intensity")
         private val KEY_APP_THEME = stringPreferencesKey("app_theme")
         private val KEY_DAY_ORDER = stringPreferencesKey("day_block_order")
+        private val KEY_DAY_OVERRIDES = stringPreferencesKey("day_overrides_json")
+        private val KEY_CHAT_HISTORY = stringPreferencesKey("chat_history_json")
         private val KEY_SEEN_VERSION = intPreferencesKey("seen_version_code")
         private val KEY_FOCUS_LABEL = stringPreferencesKey("focus_label")
         private val KEY_FOCUS_STARTED = longPreferencesKey("focus_started_at")

@@ -14,7 +14,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import ai.bewsoa.flow.ui.theme.LocalPalette
 import ai.bewsoa.flow.ui.theme.Radius
 import ai.bewsoa.flow.ui.theme.Space
@@ -48,9 +50,9 @@ sealed interface CardTone {
 }
 
 /**
- * The workhorse surface. Replaces GlowCard: elevation is a tonal step rather
- * than a border and a glow, which is the only thing that reads correctly on
- * the AMOLED palette where shadows are invisible.
+ * The workhorse surface. On dark palettes elevation is a tonal step (shadows
+ * are invisible on AMOLED); on light palettes the card additionally floats on
+ * a soft indigo-tinted shadow — the paper-on-cream look of the redesign.
  */
 @Composable
 fun Card(
@@ -65,10 +67,23 @@ fun Card(
         CardTone.Sunken -> palette.surfaceSunken
         is CardTone.Accent -> palette.surface
     }
+    val shape = RoundedCornerShape(Radius.card)
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(Radius.card))
+            .then(
+                if (palette.isLight && tone != CardTone.Sunken) {
+                    Modifier.shadow(
+                        elevation = 3.dp,
+                        shape = shape,
+                        spotColor = Color(0x33322B7A),
+                        ambientColor = Color(0x1F322B7A)
+                    )
+                } else {
+                    Modifier
+                }
+            )
+            .clip(shape)
             .background(background)
             .then(
                 if (tone is CardTone.Accent) {

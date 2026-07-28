@@ -62,24 +62,31 @@ class TaskRepository private constructor(
 
         val today = LocalDate.now()
         return AiTaskParser.parse(provider, key, clean, today.toString(), today.dayOfWeek.name)
-            .mapCatching { parsed ->
-                val date = runCatching { LocalDate.parse(parsed.scheduledDate) }.getOrDefault(today)
-                val id = dao.insertTask(
-                    TaskEntity(
-                        title = parsed.title.ifBlank { clean },
-                        note = parsed.note,
-                        track = parsed.track,
-                        scheduledDate = date.toString(),
-                        estimatedMinutes = parsed.estimatedMinutes,
-                        createdAt = System.currentTimeMillis(),
-                        sortOrder = dao.maxSortOrder(date.toString()) + 1,
-                        needsReview = parsed.needsReview,
-                        urgent = parsed.urgent,
-                        important = parsed.important
-                    )
-                )
-                if (parsed.subtasks.isNotEmpty()) dao.insertSubtasks(subtasksFor(id, parsed.subtasks))
-            }
+            .mapCatching { parsed -> addParsedTask(parsed, fallbackTitle = clean) }
+    }
+
+    /**
+     * Inserts an already-parsed task — the shared tail of [addTaskWithAi] and
+     * the chat assistant's add-task draft, so both paths store identically.
+     */
+    suspend fun addParsedTask(parsed: AiTaskParser.ParsedTask, fallbackTitle: String = "") {
+        val today = LocalDate.now()
+        val date = runCatching { LocalDate.parse(parsed.scheduledDate) }.getOrDefault(today)
+        val id = dao.insertTask(
+            TaskEntity(
+                title = parsed.title.ifBlank { fallbackTitle },
+                note = parsed.note,
+                track = parsed.track,
+                scheduledDate = date.toString(),
+                estimatedMinutes = parsed.estimatedMinutes,
+                createdAt = System.currentTimeMillis(),
+                sortOrder = dao.maxSortOrder(date.toString()) + 1,
+                needsReview = parsed.needsReview,
+                urgent = parsed.urgent,
+                important = parsed.important
+            )
+        )
+        if (parsed.subtasks.isNotEmpty()) dao.insertSubtasks(subtasksFor(id, parsed.subtasks))
     }
 
     /** Zeigarnik: ask the model to break an existing task into checkable steps. */

@@ -1,14 +1,13 @@
 package ai.bewsoa.flow.ui.tasks
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,36 +17,33 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Update
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -56,23 +52,21 @@ import ai.bewsoa.flow.data.Track
 import ai.bewsoa.flow.data.db.SubtaskEntity
 import ai.bewsoa.flow.data.db.TaskEntity
 import ai.bewsoa.flow.data.db.TaskWithSubtasks
-import ai.bewsoa.flow.ui.components.GlowCard
+import ai.bewsoa.flow.ui.components.Card
+import ai.bewsoa.flow.ui.components.PastelRow
+import ai.bewsoa.flow.ui.components.RoundCheck
+import ai.bewsoa.flow.ui.components.SectionLabel
 import ai.bewsoa.flow.ui.components.StatBar
+import ai.bewsoa.flow.ui.components.pressBounce
 import ai.bewsoa.flow.ui.formatHours
-import ai.bewsoa.flow.ui.theme.Amber
-import ai.bewsoa.flow.ui.theme.Coral
-import ai.bewsoa.flow.ui.theme.Cyan
-import ai.bewsoa.flow.ui.theme.Mint
-import ai.bewsoa.flow.ui.theme.Muted
-import ai.bewsoa.flow.ui.theme.Outline
-import ai.bewsoa.flow.ui.theme.TextBright
-import ai.bewsoa.flow.ui.theme.TextDim
-import ai.bewsoa.flow.ui.theme.Violet
+import ai.bewsoa.flow.ui.theme.LocalPalette
+import ai.bewsoa.flow.ui.theme.Radius
+import ai.bewsoa.flow.ui.theme.Space
 import ai.bewsoa.flow.ui.theme.color
 
 /**
  * Callbacks the tasks section fires back to [TasksViewModel]. Grouped so the
- * Today screen forwards them in one place.
+ * Day screen forwards them in one place.
  */
 class TaskActions(
     val onQuickAdd: (String) -> Unit,
@@ -87,152 +81,194 @@ class TaskActions(
     val onClearMessage: () -> Unit
 )
 
-/** Adds the user-task cards to the Today [LazyListScope] under the routine blocks. */
-fun LazyListScope.tasksSection(state: TasksUiState, actions: TaskActions) {
-    item(key = "task_composer") { TaskComposer(state, actions) }
+/**
+ * The user-task half of the Day screen: capacity meter, pastel task rows and
+ * a composer at the end (the + FAB scrolls here and focuses it).
+ */
+fun LazyListScope.tasksSection(
+    state: TasksUiState,
+    actions: TaskActions,
+    composerFocus: FocusRequester
+) {
     if (state.tasks.isNotEmpty()) {
         item(key = "task_capacity") { CapacityMeter(state, actions.onCapacity) }
         items(state.tasks, key = { "task_${it.task.id}" }) { item ->
-            TaskCard(item, state.aiAvailable, state.aiBusy, actions)
+            TaskRow(item, state.aiAvailable, state.aiBusy, actions)
         }
-    } else {
-        item(key = "task_empty") { EmptyHint() }
+    }
+    item(key = "task_composer") { TaskComposer(state, actions, composerFocus) }
+}
+
+@Composable
+private fun TaskComposer(
+    state: TasksUiState,
+    actions: TaskActions,
+    focus: FocusRequester
+) {
+    val palette = LocalPalette.current
+    var text by rememberSaveable { mutableStateOf("") }
+    val canAdd = text.isNotBlank() && !state.aiBusy
+
+    Card {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(Radius.pill))
+                .background(palette.surfaceHigh)
+                .padding(horizontal = Space.l, vertical = 12.dp)
+        ) {
+            if (text.isEmpty()) {
+                Text(
+                    "Add a task — plain words work",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = palette.textDim
+                )
+            }
+            BasicTextField(
+                value = text,
+                onValueChange = {
+                    text = it
+                    if (state.message != null) actions.onClearMessage()
+                },
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = palette.textBright),
+                cursorBrush = SolidColor(palette.accent),
+                maxLines = 3,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focus)
+            )
+        }
+        Spacer(Modifier.height(Space.m))
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
+            ComposerButton(
+                label = "Add",
+                icon = { Icon(Icons.Rounded.Add, null, Modifier.size(16.dp), tint = palette.ink) },
+                container = palette.textBright,
+                content = palette.ink,
+                enabled = canAdd
+            ) {
+                actions.onQuickAdd(text)
+                text = ""
+            }
+            if (state.aiAvailable) {
+                ComposerButton(
+                    label = "Add with AI",
+                    icon = {
+                        if (state.aiBusy) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(14.dp),
+                                strokeWidth = 2.dp,
+                                color = palette.accent
+                            )
+                        } else {
+                            Icon(
+                                Icons.Rounded.AutoAwesome, null,
+                                Modifier.size(16.dp), tint = palette.accent
+                            )
+                        }
+                    },
+                    container = palette.accent.copy(alpha = 0.14f),
+                    content = palette.accent,
+                    enabled = canAdd
+                ) {
+                    actions.onAiAdd(text)
+                    text = ""
+                }
+            }
+        }
+        if (state.message != null) {
+            Spacer(Modifier.height(Space.s))
+            Text(
+                state.message,
+                style = MaterialTheme.typography.bodySmall,
+                color = palette.danger
+            )
+        }
     }
 }
 
 @Composable
-private fun TaskComposer(state: TasksUiState, actions: TaskActions) {
-    var text by remember { mutableStateOf("") }
-
-    GlowCard {
-        OutlinedTextField(
-            value = text,
-            onValueChange = {
-                text = it
-                if (state.message != null) actions.onClearMessage()
-            },
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = {
-                Text(
-                    "Add a task — plain words work",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            },
-            maxLines = 3,
-            shape = RoundedCornerShape(14.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = TextBright,
-                unfocusedTextColor = TextBright,
-                cursorColor = Cyan,
-                focusedBorderColor = Cyan.copy(alpha = 0.7f),
-                unfocusedBorderColor = Outline,
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                focusedPlaceholderColor = TextDim,
-                unfocusedPlaceholderColor = TextDim
+private fun ComposerButton(
+    label: String,
+    icon: @Composable () -> Unit,
+    container: Color,
+    content: Color,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    val palette = LocalPalette.current
+    val interaction = remember { MutableInteractionSource() }
+    Row(
+        modifier = Modifier
+            .pressBounce(interaction)
+            .clip(RoundedCornerShape(Radius.pill))
+            .background(if (enabled) container else palette.outline)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                enabled = enabled,
+                onClick = onClick
             )
+            .padding(horizontal = Space.l, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        icon()
+        Spacer(Modifier.width(6.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelLarge,
+            color = if (enabled) content else palette.textDim
         )
-        Spacer(Modifier.height(10.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Button(
-                onClick = { if (text.isNotBlank()) { actions.onQuickAdd(text); text = "" } },
-                enabled = text.isNotBlank() && !state.aiBusy,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Violet,
-                    contentColor = TextBright
-                )
-            ) {
-                Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("Add")
-            }
-            if (state.aiAvailable) {
-                Spacer(Modifier.width(10.dp))
-                FilledTonalButton(
-                    onClick = { if (text.isNotBlank()) { actions.onAiAdd(text); text = "" } },
-                    enabled = text.isNotBlank() && !state.aiBusy,
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = Cyan.copy(alpha = 0.18f),
-                        contentColor = Cyan
-                    )
-                ) {
-                    if (state.aiBusy) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                            color = Cyan
-                        )
-                    } else {
-                        Icon(
-                            Icons.Rounded.AutoAwesome,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    Spacer(Modifier.width(6.dp))
-                    Text("Add with AI")
-                }
-            }
-        }
-        // Only surface problems here — how-it-works text lives in the Guide.
-        if (state.message != null) {
-            Spacer(Modifier.height(8.dp))
-            Text(state.message, style = MaterialTheme.typography.bodySmall, color = Coral)
-        }
     }
 }
 
 @Composable
 private fun CapacityMeter(state: TasksUiState, onCapacity: (Int) -> Unit) {
-    val planned = state.plannedMinutes
-    val capacity = state.capacityMinutes
-    GlowCard(accent = if (state.overCapacity) Coral else null) {
+    val palette = LocalPalette.current
+    Card {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text(
-                    "DAY LOAD",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TextDim,
-                    letterSpacing = 1.5.sp
-                )
+                SectionLabel("Day load")
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    "${formatHours(planned.toLong())} planned · ${state.doneCount}/${state.tasks.size} done",
+                    "${formatHours(state.plannedMinutes.toLong())} planned · " +
+                        "${state.doneCount}/${state.tasks.size} done",
                     style = MaterialTheme.typography.titleSmall,
-                    color = TextBright
+                    color = palette.textBright
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { onCapacity(-30) }) {
-                    Icon(Icons.Rounded.Remove, "Lower capacity", tint = TextDim)
+                    Icon(Icons.Rounded.Remove, "Lower capacity", tint = palette.textDim)
                 }
                 Text(
-                    formatHours(capacity.toLong()),
+                    formatHours(state.capacityMinutes.toLong()),
                     style = MaterialTheme.typography.labelLarge,
-                    color = TextBright
+                    color = palette.textBright
                 )
                 IconButton(onClick = { onCapacity(30) }) {
-                    Icon(Icons.Rounded.Add, "Raise capacity", tint = TextDim)
+                    Icon(Icons.Rounded.Add, "Raise capacity", tint = palette.textDim)
                 }
             }
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(Space.s))
         StatBar(
             ratio = state.capacityRatio,
-            color = if (state.overCapacity) Coral else Mint
+            color = if (state.overCapacity) palette.danger else palette.success,
+            height = 6.dp
         )
-        // Quiet when things fit; only the overload warning earns a line.
         if (state.overCapacity) {
             Spacer(Modifier.height(6.dp))
             Text(
-                "Over your ${formatHours(capacity.toLong())} by " +
-                    "${formatHours((planned - capacity).toLong())} — trim or move a task.",
+                "Over your ${formatHours(state.capacityMinutes.toLong())} by " +
+                    formatHours((state.plannedMinutes - state.capacityMinutes).toLong()) +
+                    " — trim or move a task. The week absorbs it.",
                 style = MaterialTheme.typography.bodySmall,
-                color = Coral
+                color = palette.danger
             )
         }
     }
@@ -240,174 +276,135 @@ private fun CapacityMeter(state: TasksUiState, onCapacity: (Int) -> Unit) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TaskCard(
+private fun TaskRow(
     item: TaskWithSubtasks,
     aiAvailable: Boolean,
     aiBusy: Boolean,
     actions: TaskActions
 ) {
+    val palette = LocalPalette.current
     val task = item.task
     val complete = item.isComplete
     val track = task.track?.let { runCatching { Track.valueOf(it) }.getOrNull() }
-    val accent = track?.color() ?: Cyan
+    val accent = track?.color() ?: palette.accent
+    var expanded by rememberSaveable(task.id) { mutableStateOf(false) }
 
-    GlowCard(accent = if (complete) null else accent.copy(alpha = 0.5f)) {
-        Row(verticalAlignment = Alignment.Top) {
-            IconButton(onClick = { actions.onToggleTask(item) }) {
-                Icon(
-                    imageVector = if (complete) Icons.Rounded.CheckCircle
-                    else Icons.Rounded.RadioButtonUnchecked,
-                    contentDescription = if (complete) "Mark as not done" else "Mark as done",
-                    tint = if (complete) Mint else TextDim,
-                    modifier = Modifier.size(26.dp)
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    task.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = if (complete) TextDim else TextBright,
-                    textDecoration = if (complete) TextDecoration.LineThrough else null
-                )
-                Spacer(Modifier.height(6.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    // Eisenhower quadrant — a tap walks Do first → Schedule → Quick → Later.
-                    val quadrant = quadrantOf(task)
-                    MiniChip(quadrant.first, quadrant.second) { actions.onQuadrant(task) }
-                    if (track != null) MiniChip("${track.emoji} ${track.label}", accent)
-                    if (task.reviewStage.isNotEmpty()) {
-                        MiniChip("🔁 Review · ${reviewLabel(task.reviewStage)}", Violet)
-                    }
-                    if (task.estimatedMinutes > 0) {
-                        MiniChip("⏱ ${formatHours(task.estimatedMinutes.toLong())}", Amber)
-                    }
+    PastelRow(
+        tint = accent,
+        dimmed = complete,
+        onClick = { expanded = !expanded },
+        verticalPadding = 12.dp
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                task.title,
+                style = MaterialTheme.typography.titleMedium,
+                color = if (complete) palette.textDim else palette.textBright,
+                textDecoration = if (complete) TextDecoration.LineThrough else null
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                taskMeta(task),
+                style = MaterialTheme.typography.labelMedium,
+                color = palette.textDim,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (item.subtasks.isNotEmpty()) {
+                Spacer(Modifier.height(Space.s))
+                StatBar(ratio = item.progress, color = accent, height = 4.dp)
+                Spacer(Modifier.height(Space.s))
+                item.subtasks.forEach { sub ->
+                    SubtaskRow(sub) { actions.onToggleSubtask(item, sub) }
                 }
+            }
+            if (expanded) {
+                Spacer(Modifier.height(Space.s))
                 if (task.note.isNotEmpty()) {
-                    Spacer(Modifier.height(6.dp))
                     Text(
                         task.note,
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextDim,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis
+                        color = palette.textDim
                     )
+                    Spacer(Modifier.height(Space.s))
                 }
-                if (item.subtasks.isNotEmpty()) {
-                    Spacer(Modifier.height(10.dp))
-                    StatBar(ratio = item.progress, color = accent, height = 6.dp)
-                    Spacer(Modifier.height(8.dp))
-                    item.subtasks.forEach { sub ->
-                        SubtaskRow(sub) { actions.onToggleSubtask(item, sub) }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    val (qLabel, qColor) = quadrantOf(task, palette)
+                    MiniChip(qLabel, qColor) { actions.onQuadrant(task) }
+                    if (item.subtasks.isEmpty() && aiAvailable && task.reviewParentId == null) {
+                        MiniChip(
+                            if (aiBusy) "…" else "✨ Split into steps",
+                            palette.accent
+                        ) { if (!aiBusy) actions.onSplit(task.id) }
                     }
-                }
-                val showSplit = item.subtasks.isEmpty() && aiAvailable && task.reviewParentId == null
-                val showTomorrow = !complete && task.reviewParentId == null
-                if (showSplit || showTomorrow) {
-                    Spacer(Modifier.height(4.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        if (showSplit) {
-                            CardAction(
-                                icon = Icons.Rounded.AutoAwesome,
-                                label = "Break into steps",
-                                tint = Cyan,
-                                enabled = !aiBusy
-                            ) { actions.onSplit(task.id) }
-                        }
-                        if (showTomorrow) {
-                            CardAction(
-                                icon = Icons.Rounded.Update,
-                                label = "Tomorrow",
-                                tint = TextDim,
-                                enabled = true
-                            ) { actions.onMoveTomorrow(task) }
-                        }
+                    if (!complete && task.reviewParentId == null) {
+                        MiniChip("→ Tomorrow", palette.textDim) { actions.onMoveTomorrow(task) }
                     }
+                    MiniChip("✕ Delete", palette.danger) { actions.onDelete(task) }
                 }
-            }
-            IconButton(onClick = { actions.onDelete(task) }) {
-                Icon(
-                    Icons.Rounded.Close,
-                    contentDescription = "Delete task",
-                    tint = TextDim,
-                    modifier = Modifier.size(20.dp)
-                )
             }
         }
+        Spacer(Modifier.width(Space.m))
+        RoundCheck(
+            checked = complete,
+            color = accent,
+            onToggle = { actions.onToggleTask(item) }
+        )
     }
 }
 
 @Composable
 private fun SubtaskRow(sub: SubtaskEntity, onToggle: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onToggle, modifier = Modifier.size(32.dp)) {
-            Icon(
-                imageVector = if (sub.done) Icons.Rounded.CheckCircle
-                else Icons.Rounded.RadioButtonUnchecked,
-                contentDescription = null,
-                tint = if (sub.done) Mint else TextDim,
-                modifier = Modifier.size(18.dp)
-            )
-        }
-        Spacer(Modifier.width(8.dp))
+    val palette = LocalPalette.current
+    Row(
+        modifier = Modifier.padding(vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RoundCheck(
+            checked = sub.done,
+            color = palette.textDim,
+            onToggle = onToggle,
+            size = 20.dp
+        )
+        Spacer(Modifier.width(Space.s))
         Text(
             sub.title,
             style = MaterialTheme.typography.bodyMedium,
-            color = if (sub.done) TextDim else TextBright,
+            color = if (sub.done) palette.textDim else palette.textBright,
             textDecoration = if (sub.done) TextDecoration.LineThrough else null
         )
     }
 }
 
 @Composable
-private fun CardAction(
-    icon: ImageVector,
-    label: String,
-    tint: Color,
-    enabled: Boolean,
-    onClick: () -> Unit
-) {
-    TextButton(
-        onClick = onClick,
-        enabled = enabled,
-        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
-    ) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
-        Spacer(Modifier.width(6.dp))
-        Text(label, color = tint, style = MaterialTheme.typography.labelLarge)
-    }
-}
-
-/** Eisenhower chip label + color for a task's current quadrant. */
-@Composable
-private fun quadrantOf(task: TaskEntity): Pair<String, Color> = when {
-    task.urgent && task.important -> "🔥 Do first" to Coral
-    task.important -> "🧭 Schedule" to Cyan
-    task.urgent -> "⚡ Quick win" to Amber
-    else -> "🌙 Later" to Muted
-}
-
-@Composable
 private fun MiniChip(text: String, color: Color, onClick: (() -> Unit)? = null) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
+            .clip(RoundedCornerShape(Radius.pill))
             .background(color.copy(alpha = 0.14f))
-            .border(1.dp, color.copy(alpha = 0.4f), RoundedCornerShape(50))
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
-            .padding(horizontal = 9.dp, vertical = 4.dp)
+            .padding(horizontal = 10.dp, vertical = 5.dp)
     ) {
-        Text(text, style = MaterialTheme.typography.labelSmall, color = TextBright)
+        Text(text, style = MaterialTheme.typography.labelMedium, color = color)
     }
 }
 
-@Composable
-private fun EmptyHint() {
-    Text(
-        "No tasks yet — the routine above is the skeleton, write the actual jobs here.",
-        style = MaterialTheme.typography.bodySmall,
-        color = TextDim
-    )
+/** "~45m · YKS · review in 3 days" — everything that matters, one quiet line. */
+private fun taskMeta(task: TaskEntity): String = buildList {
+    if (task.estimatedMinutes > 0) add("~${formatHours(task.estimatedMinutes.toLong())}")
+    task.track?.let { add(it) }
+    if (task.reviewStage.isNotEmpty()) add("🔁 ${reviewLabel(task.reviewStage)}")
+    if (task.urgent && task.important) add("🔥 do first")
+}.joinToString(" · ").ifEmpty { "tap for actions" }
+
+private fun quadrantOf(
+    task: TaskEntity,
+    palette: ai.bewsoa.flow.ui.theme.Palette
+): Pair<String, Color> = when {
+    task.urgent && task.important -> "🔥 Do first" to palette.danger
+    task.important -> "🧭 Schedule" to palette.primary
+    task.urgent -> "⚡ Quick win" to palette.warn
+    else -> "🌙 Later" to palette.slate
 }
 
 private fun reviewLabel(stage: String): String = when (stage) {

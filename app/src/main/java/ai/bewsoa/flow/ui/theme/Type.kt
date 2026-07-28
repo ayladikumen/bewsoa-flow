@@ -13,80 +13,102 @@ import androidx.compose.ui.unit.sp
 private const val Tnum = "tnum"
 
 /**
- * The system font, used at a much wider range than before: big tight numbers
- * against small wide labels. The hierarchy has to survive with all colour
- * removed, which is why the display sizes are this far from the body sizes.
+ * Two families with clear jobs: Baloo 2 (rounded, chunky) owns display,
+ * headlines and card titles — the "poster voice" of the redesign — while
+ * Nunito carries body and labels. Line heights are taller than the old scale
+ * because Baloo's rounded ascenders need the air.
  */
 val AppTypography = Typography(
-    // Focus countdown.
+    // Focus countdown. Stays on the system font: it ticks every second and
+    // needs tabular digits, which the display face doesn't guarantee.
     displayLarge = TextStyle(
         fontWeight = FontWeight.Bold,
         fontSize = 64.sp,
-        lineHeight = 64.sp,
+        lineHeight = 66.sp,
         letterSpacing = (-2).sp,
         fontFeatureSettings = Tnum
     ),
-    // XP ring centre, streak count.
+    // Hero numbers: completion percent, streak count, celebration headline.
     displayMedium = TextStyle(
-        fontWeight = FontWeight.Bold,
+        fontFamily = DisplayFamily,
+        fontWeight = FontWeight.ExtraBold,
         fontSize = 44.sp,
-        lineHeight = 46.sp,
-        letterSpacing = (-1.5).sp,
-        fontFeatureSettings = Tnum
+        lineHeight = 54.sp,
+        letterSpacing = (-0.5).sp
     ),
     displaySmall = TextStyle(
-        fontWeight = FontWeight.Bold,
-        fontSize = 32.sp,
-        lineHeight = 36.sp,
-        letterSpacing = (-1).sp,
-        fontFeatureSettings = Tnum
-    ),
-    headlineLarge = TextStyle(
+        fontFamily = DisplayFamily,
         fontWeight = FontWeight.ExtraBold,
-        fontSize = 28.sp,
-        lineHeight = 32.sp,
-        letterSpacing = (-0.6).sp
+        fontSize = 32.sp,
+        lineHeight = 40.sp,
+        letterSpacing = (-0.5).sp
     ),
-    // Screen title.
+    // The big indigo screen title ("Good evening", "Tasks", "Your week").
+    headlineLarge = TextStyle(
+        fontFamily = DisplayFamily,
+        fontWeight = FontWeight.ExtraBold,
+        fontSize = 30.sp,
+        lineHeight = 38.sp,
+        letterSpacing = (-0.5).sp
+    ),
     headlineMedium = TextStyle(
+        fontFamily = DisplayFamily,
         fontWeight = FontWeight.Bold,
         fontSize = 24.sp,
-        lineHeight = 28.sp,
-        letterSpacing = (-0.4).sp
+        lineHeight = 32.sp,
+        letterSpacing = (-0.3).sp
     ),
     headlineSmall = TextStyle(
+        fontFamily = DisplayFamily,
         fontWeight = FontWeight.Bold,
         fontSize = 20.sp,
-        lineHeight = 24.sp,
-        letterSpacing = (-0.3).sp
+        lineHeight = 27.sp,
+        letterSpacing = (-0.2).sp
     ),
     // Card title.
     titleLarge = TextStyle(
-        fontWeight = FontWeight.SemiBold,
+        fontFamily = DisplayFamily,
+        fontWeight = FontWeight.Bold,
         fontSize = 18.sp,
-        lineHeight = 24.sp,
-        letterSpacing = (-0.2).sp
+        lineHeight = 25.sp
     ),
     // Row title.
-    titleMedium = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp),
-    titleSmall = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, lineHeight = 18.sp),
-    bodyLarge = TextStyle(fontSize = 15.sp, lineHeight = 22.sp),
-    bodyMedium = TextStyle(fontSize = 13.sp, lineHeight = 19.sp),
-    bodySmall = TextStyle(fontSize = 12.sp, lineHeight = 16.sp),
+    titleMedium = TextStyle(
+        fontFamily = BodyFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 15.sp,
+        lineHeight = 21.sp
+    ),
+    titleSmall = TextStyle(
+        fontFamily = BodyFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 13.sp,
+        lineHeight = 18.sp
+    ),
+    bodyLarge = TextStyle(fontFamily = BodyFamily, fontSize = 15.sp, lineHeight = 22.sp),
+    bodyMedium = TextStyle(fontFamily = BodyFamily, fontSize = 13.sp, lineHeight = 19.sp),
+    bodySmall = TextStyle(fontFamily = BodyFamily, fontSize = 12.sp, lineHeight = 17.sp),
     // Buttons.
-    labelLarge = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 14.sp, lineHeight = 18.sp),
-    // Grid times, chips.
+    labelLarge = TextStyle(
+        fontFamily = BodyFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 14.sp,
+        lineHeight = 18.sp
+    ),
+    // Times, chips, small numbers.
     labelMedium = TextStyle(
-        fontWeight = FontWeight.Medium,
+        fontFamily = BodyFamily,
+        fontWeight = FontWeight.SemiBold,
         fontSize = 12.sp,
-        lineHeight = 14.sp,
+        lineHeight = 15.sp,
         fontFeatureSettings = Tnum
     ),
     // SECTION HEADERS — always uppercased by SectionLabel, never by hand.
     labelSmall = TextStyle(
-        fontWeight = FontWeight.Bold,
+        fontFamily = BodyFamily,
+        fontWeight = FontWeight.ExtraBold,
         fontSize = 10.sp,
-        lineHeight = 12.sp,
+        lineHeight = 13.sp,
         letterSpacing = 1.2.sp
     )
 )

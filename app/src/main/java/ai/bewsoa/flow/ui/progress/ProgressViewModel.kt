@@ -6,11 +6,14 @@ import androidx.lifecycle.viewModelScope
 import ai.bewsoa.flow.data.ChestState
 import ai.bewsoa.flow.data.CustomProgram
 import ai.bewsoa.flow.data.DayBlockOrder
+import ai.bewsoa.flow.data.DayOverrides
 import ai.bewsoa.flow.data.FocusRepository
 import ai.bewsoa.flow.data.Insight
 import ai.bewsoa.flow.data.Insights
 import ai.bewsoa.flow.data.LevelInfo
+import ai.bewsoa.flow.data.ProgramDiff
 import ai.bewsoa.flow.data.ProgramRepository
+import ai.bewsoa.flow.data.SettingsRepository
 import ai.bewsoa.flow.data.SkipBudget
 import ai.bewsoa.flow.data.StreakInfo
 import ai.bewsoa.flow.data.TaskBlock
@@ -20,6 +23,8 @@ import ai.bewsoa.flow.data.Xp
 import ai.bewsoa.flow.data.XpRepository
 import ai.bewsoa.flow.data.buildWeekStats
 import ai.bewsoa.flow.data.db.CompletionState
+import ai.bewsoa.flow.notifications.TaskAlarmScheduler
+import ai.bewsoa.flow.ui.today.CoachProposal
 import ai.bewsoa.flow.widget.Widgets
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -117,8 +122,9 @@ class ProgressViewModel(
             repo.observeRange(historyStart, weekStart.plusDays(6)),
             focusRepo.observeRange(weekStart, weekStart.plusDays(6)),
             CustomProgram.version,
+            DayOverrides.version,
             xpFlow
-        ) { rows, focusSessions, _, xp -> Triple(rows, focusSessions, xp) }
+        ) { rows, focusSessions, _, _, xp -> Triple(rows, focusSessions, xp) }
         .mapLatest { (rows, focusSessions, xp) ->
             val weekRows = rows.filter { it.date >= weekStart.toString() }
             val dayMinutes = MutableList(7) { 0 }
@@ -147,6 +153,42 @@ class ProgressViewModel(
         viewModelScope.launch { xpRepo.openChest(weekStart) }
     }
 
+    // Coach proposal — the Week tab owns the drafts UI ---------------------------
+
+    private val settings = SettingsRepository.get(app)
+
+    /** Non-null while a coach draft waits; diff is against the active program. */
+    val proposal: StateFlow<CoachProposal?> = combine(
+        settings.pendingProposalJson,
+        settings.pendingProposalNote,
+        CustomProgram.version
+    ) { json, note, _ ->
+        json?.let {
+            CustomProgram.parse(it).getOrNull()?.let { proposed ->
+                CoachProposal(
+                    note = note.orEmpty(),
+                    diff = ProgramDiff.summarize(WeeklyProgram.weekMap(), proposed),
+                    json = it
+                )
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun acceptProposal() {
+        viewModelScope.launch {
+            val pending = proposal.value ?: return@launch
+            settings.setProgramJson(pending.json)
+            CustomProgram.activate(pending.json)
+            TaskAlarmScheduler.scheduleUpcoming(getApplication())
+            settings.clearPendingProposal()
+            Widgets.refreshAll(getApplication())
+        }
+    }
+
+    fun dismissProposal() {
+        viewModelScope.launch { settings.clearPendingProposal() }
+    }
+
     fun openLastChest() {
         viewModelScope.launch { xpRepo.openChest(weekStart.minusWeeks(1)) }
     }
@@ -163,8 +205,9 @@ class ProgressViewModel(
     val planState: StateFlow<PlanUiState> = combine(
         selectedDate,
         CustomProgram.version,
-        DayBlockOrder.version
-    ) { selected, _, _ -> selected }
+        DayBlockOrder.version,
+        DayOverrides.version
+    ) { selected, _, _, _ -> selected }
         .flatMapLatest { selected ->
             val planWeek = selected.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
             combine(

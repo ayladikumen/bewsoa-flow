@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import ai.bewsoa.flow.data.CustomProgram
 import ai.bewsoa.flow.data.DayBlockOrder
+import ai.bewsoa.flow.data.DayOverrides
 import ai.bewsoa.flow.data.FocusRepository
 import ai.bewsoa.flow.data.LevelInfo
 import ai.bewsoa.flow.data.ProgramDiff
@@ -123,8 +124,9 @@ class TodayViewModel(
     val uiState: StateFlow<TodayUiState> = combine(
         date,
         CustomProgram.version,
-        DayBlockOrder.version
-    ) { day, _, _ -> day }
+        DayBlockOrder.version,
+        DayOverrides.version
+    ) { day, _, _, _ -> day }
         .flatMapLatest { day ->
             val yesterday = day.minusDays(1)
             combine(

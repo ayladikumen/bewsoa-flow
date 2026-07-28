@@ -16,8 +16,8 @@ android {
         // Must stay ahead of the installed build (5) or install is a downgrade.
         // Keep ui/guide/GuideScreen.kt's GUIDE_VERSION in step with versionCode,
         // or the What's new overlay silently never fires.
-        versionCode = 6
-        versionName = "2.0.0-beta.1"
+        versionCode = 7
+        versionName = "3.0.0-beta.1"
     }
 
     buildTypes {
@@ -76,4 +76,7 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     testImplementation("junit:junit:4.13.2")
+    // Local unit tests see android.jar's org.json as "Stub!" throwers; the real
+    // artifact on the test classpath makes BlockCodec/CustomProgram testable.
+    testImplementation("org.json:json:20240303")
 }
