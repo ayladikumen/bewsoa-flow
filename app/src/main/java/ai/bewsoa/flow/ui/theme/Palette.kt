@@ -49,6 +49,45 @@ data class Palette(
 
 object Palettes {
 
+    /**
+     * The 3.0 identity — warm cream paper, deep-indigo ink, candy pastels.
+     * Task rows tint themselves with `track.color().copy(alpha = …)` over the
+     * white cards, which is what produces the pastel checklist look.
+     */
+    val Sunrise = Palette(
+        id = "sunrise",
+        label = "Sunrise",
+        isLight = true,
+        background = Color(0xFFF6F1E7),
+        surface = Color(0xFFFFFFFF),
+        card = Color(0xFFFFFFFF),
+        primary = Color(0xFF4B44DE),
+        primaryDeep = Color(0xFFE7E4FB),
+        accent = Color(0xFF7C3AED),
+        success = Color(0xFF23A56F),
+        warn = Color(0xFFE8823D),
+        danger = Color(0xFFDE5468),
+        pink = Color(0xFFE0619F),
+        orange = Color(0xFFEF8B3F),
+        gold = Color(0xFFCE9110),
+        slate = Color(0xFF7A889B),
+        muted = Color(0xFFA3ABBE),
+        textBright = Color(0xFF312E81),
+        textDim = Color(0xFF6F6D9B),
+        outline = Color(0xFFE7E0D2),
+        ink = Color(0xFFFFFFFF),
+        backgroundGradient = listOf(
+            Color(0xFFF6F1E7), Color(0xFFF0E7F6), Color(0xFFF6F1E7)
+        ),
+        // White cards over cream: the derived values would vanish, so both
+        // steps are spelled out — warm paper up, deeper parchment down.
+        surfaceHigh = Color(0xFFF6F2E9),
+        surfaceSunken = Color(0xFFEDE6D8),
+        scrim = Color(0x59000000),
+        xp = Color(0xFFCE9110),
+        focus = Color(0xFF4B44DE)
+    )
+
     /** The original look — deep navy, violet and cyan neon. */
     val NeonNight = Palette(
         id = "neon_night",
@@ -170,14 +209,14 @@ object Palettes {
         surfaceHigh = Color(0xFF161C29)
     )
 
-    val all = listOf(NeonNight, Ember, Daylight, PitchBlack)
+    val all = listOf(Sunrise, NeonNight, Ember, Daylight, PitchBlack)
 
-    const val DEFAULT_ID = "neon_night"
+    const val DEFAULT_ID = "sunrise"
 
-    fun byId(id: String?): Palette = all.firstOrNull { it.id == id } ?: NeonNight
+    fun byId(id: String?): Palette = all.firstOrNull { it.id == id } ?: Sunrise
 }
 
-val LocalPalette = compositionLocalOf { Palettes.NeonNight }
+val LocalPalette = compositionLocalOf { Palettes.Sunrise }
 
 /**
  * The theme id read synchronously at app start (alongside the program), so the

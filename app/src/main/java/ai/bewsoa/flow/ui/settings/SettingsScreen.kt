@@ -93,7 +93,7 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Text(
-            "Settings",
+            "Profile",
             style = MaterialTheme.typography.headlineLarge,
             color = TextBright
         )

@@ -40,13 +40,25 @@ import ai.bewsoa.flow.ui.theme.Violet
  */
 
 /** Bump alongside versionCode so the What's new overlay shows once per release. */
-const val GUIDE_VERSION = 6
+const val GUIDE_VERSION = 7
 
 private data class Release(val version: String, val changes: List<String>)
 
 private data class GuideSection(val emoji: String, val title: String, val points: List<String>)
 
 private val RELEASES = listOf(
+    Release(
+        "3.0 (beta) — the new start",
+        listOf(
+            "A brand-new look: warm paper, big rounded type, pastel checklists and a floating five-button bar with the Week — the real goal — in the middle.",
+            "Days are checklists now, not timetables. Blocks show as \"~2h · evening\"; the pace bar keeps you honest about the clock without a single hour grid.",
+            "The Assistant is alive: chat about your plan, and it drafts changes. Say \"tonight I'm out\" and it edits just today; only \"every week / from now on\" touches the standing program. Every draft shows Apply buttons — nothing changes silently.",
+            "One-time day edits live in their own layer, so alarms, widgets, streak and XP follow them automatically and the weekly program stays untouched.",
+            "XP now speaks human: your level as a badge, the runway to the next one, the week as seven dots, and the chest as a moment. Numbers only where they mean something.",
+            "Home is a dashboard: greeting, one honest ring, routine/task tiles, focus launcher and a peek at the week.",
+            "Focus moved behind Home's play button; the timer, live notification and weekly stats are unchanged."
+        )
+    ),
     Release(
         "2.0 (beta)",
         listOf(
@@ -87,32 +99,49 @@ private val RELEASES = listOf(
 
 private val SECTIONS = listOf(
     GuideSection(
-        "⚡", "Today",
+        "🏠", "Home",
         listOf(
-            "The ring is today's progress. A day is \"kept\" at 60% of counted blocks — the streak's one rule is never miss twice.",
-            "Tick blocks as you finish them. Hold & drag to match the order life actually happened.",
-            "Catch up gathers unlogged blocks from today and yesterday behind one line.",
-            "Deep work sums focused blocks plus confirmed Focus sessions against a soft 6h goal.",
-            "My tasks: write plainly and Add — or Add with AI to size, schedule and split it (uses your Settings API key).",
-            "On a task: tap the colored chip to change its priority quadrant, break it into steps, or push it to tomorrow guilt-free.",
-            "Tasks marked as memorization come back for review at +1, +3, +7 and +30 days.",
-            "Day load compares planned task minutes to your capacity — adjust it with the ± buttons."
+            "Greeting, the big ring (today's plan), routine & task tiles, the XP daily goal, the focus launcher and a peek at the week.",
+            "The flame pill is your streak — it breathes until today is kept, then settles.",
+            "Everything on Home is a door: tap the ring for Today, the bars for Week, the play button for Focus."
+        )
+    ),
+    GuideSection(
+        "✅", "Today",
+        listOf(
+            "The day as a checklist, not a timetable: every block shows as \"~2h · evening\" — durations and dayparts, no hour grid.",
+            "The pace bar: the knob is the day passing (7:00–24:00), the fill is your plan getting done. Fill ahead of knob = you're beating the day.",
+            "The goal is the week — ease any single day (skip, reorder, move a task to tomorrow) and let the week absorb it.",
+            "A day is \"kept\" at 60% of counted blocks. Never miss twice.",
+            "Hold & drag rows to match the order life actually happened; catch-up collects unlogged blocks behind one line.",
+            "My tasks: the + button (or the composer at the bottom) adds in plain words; AI sizes, schedules and splits. Tap a task for its quadrant, steps, tomorrow and delete."
+        )
+    ),
+    GuideSection(
+        "🗓️", "Week — the centre button",
+        listOf(
+            "The week ring and pace line: ahead of pace means a light Sunday; behind means small daily wins, not a weekend cram.",
+            "The streak as seven dots, your level badge, and the weekly chest — keep 5 days to unlock it, open it yourself.",
+            "The plan: browse any day of any week — ‹ › moves weeks, the strip picks the day. Log or skip right there.",
+            "AI drafts (the Sunday coach, and week-wide chat changes) land here as cards you accept or dismiss."
+        )
+    ),
+    GuideSection(
+        "✨", "Assistant",
+        listOf(
+            "Chat about your plan: what's left, how the week looks, what to do next.",
+            "Ask for a change and it drafts one. \"Tonight I'm at a wedding\" edits only tonight; \"move gym to 6pm every week\" rewrites the program — and it will only do that when you clearly say it's permanent.",
+            "Drafts are never auto-applied: every one shows what changes and waits for your Apply.",
+            "It can also add tasks — \"add: 40 soru paragraf yarına\" becomes a sized, scheduled task.",
+            "Uses your own Claude or Gemini key from Profile; the conversation stays on this phone."
         )
     ),
     GuideSection(
         "🧠", "Focus",
         listOf(
-            "Commit to one thing and a length, then start. The countdown runs here and as a live notification.",
+            "Start from Home's play button. Commit to one thing and a length; the countdown runs here and in the notification shade.",
             "When time's up: Completed logs it to today at that moment and into the weekly total. Discard logs nothing.",
             "Finish now credits the minutes you actually did; Abandon drops the session — the streak never depended on it."
-        )
-    ),
-    GuideSection(
-        "📈", "Progress",
-        listOf(
-            "The plan: browse any day of any week — ‹ › moves weeks, the strip picks the day. Log or skip right there.",
-            "Streak, insights computed from your history, this week's day bars and per-track totals.",
-            "Deep focus: the week's confirmed session time, day by day."
         )
     ),
     GuideSection(
@@ -120,7 +149,7 @@ private val SECTIONS = listOf(
         listOf(
             "Every finished block pays XP — longer and more mission-critical pays more. Tasks and focus sessions pay a little too.",
             "The daily goal is 80% of a perfect day, computed from your actual plan. Crossing it banks a +25 bonus.",
-            "Keep 5 days in a week and the chest unlocks — open it yourself on Progress, that tap is the reward.",
+            "Keep 5 days in a week and the chest unlocks — open it yourself on Week, that tap is the reward.",
             "Un-checking a block takes its XP back. Skipped blocks never pay and never cost.",
             "Streak freezes: one earned per 7 kept days (hold max 2). A freeze spends itself to save yesterday when a streak of 3+ would break."
         )
@@ -139,11 +168,12 @@ private val SECTIONS = listOf(
         )
     ),
     GuideSection(
-        "⚙️", "Settings",
+        "👤", "Profile",
         listOf(
-            "Theme picker — widgets recolor with it.",
+            "Themes — Sunrise is the new default; the old dark looks are still there, and widgets recolor with your pick.",
             "Program: edit the week as markdown and let Claude or Gemini rebuild it. API keys never leave this phone.",
-            "The Sunday coach's draft appears on Today — you always accept or dismiss it yourself."
+            "The Sunday coach's draft appears on Week — you always accept or dismiss it yourself.",
+            "Your data: export everything as CSV, JSON or Markdown."
         )
     ),
     GuideSection(
@@ -171,7 +201,7 @@ fun WhatsNewOverlay(onDone: () -> Unit) {
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Violet,
-                contentColor = TextBright
+                contentColor = androidx.compose.ui.graphics.Color.White
             )
         ) {
             Text("Got it — let's go")
