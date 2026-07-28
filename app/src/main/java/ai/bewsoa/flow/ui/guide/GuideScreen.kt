@@ -113,7 +113,7 @@ private val SECTIONS = listOf(
             "The pace bar: the knob is the day passing (7:00–24:00), the fill is your plan getting done. Fill ahead of knob = you're beating the day.",
             "The goal is the week — ease any single day (skip, reorder, move a task to tomorrow) and let the week absorb it.",
             "A day is \"kept\" at 60% of counted blocks. Never miss twice.",
-            "Hold & drag rows to match the order life actually happened; catch-up collects unlogged blocks behind one line.",
+            "Hold & drag rows to match the order life actually happened — every block keeps its own length, the clock times just reflow. Catch-up collects unlogged blocks behind one line.",
             "My tasks: the + button (or the composer at the bottom) adds in plain words; AI sizes, schedules and splits. Tap a task for its quadrant, steps, tomorrow and delete."
         )
     ),

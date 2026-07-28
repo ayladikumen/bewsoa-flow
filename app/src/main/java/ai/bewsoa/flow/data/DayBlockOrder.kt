@@ -4,14 +4,17 @@ import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
+import java.time.Duration
 import java.time.LocalDate
 
 /**
  * Per-day override of the block order — "life happened in a different order today".
  *
- * The day's time slots stay fixed; dragging re-assigns which block lives in which
- * slot, so studying before the gym simply swaps their times for that date only.
- * Completions are keyed by block id, so ticking (and the streak) is unaffected.
+ * Every block keeps its own length when dragged: the day is re-laid from its
+ * original start time, block after block, preserving the gaps the program had
+ * between them. A 2-hour session stays 2 hours wherever it lands; only the
+ * clock positions reflow. Completions are keyed by block id, so ticking (and
+ * the streak) is unaffected.
  *
  * Loaded synchronously at app start like [CustomProgram]; [version] bumps so
  * screens, widgets and alarms recompute. Orders older than yesterday are pruned —
@@ -31,18 +34,31 @@ object DayBlockOrder {
         version.value++
     }
 
-    /** Re-slots [blocks] for [date] if an order is stored; ignores stale orders. */
+    /** Re-times [blocks] for [date] if an order is stored; ignores stale orders. */
     fun applyTo(blocks: List<TaskBlock>, date: LocalDate): List<TaskBlock> {
         val order = orders[date.toString()] ?: return blocks
         // Only a full permutation of today's ids is trusted — a program change
         // since the drag invalidates the stored order.
-        if (order.size != blocks.size || order.toSet() != blocks.mapTo(HashSet()) { it.id }) {
+        if (blocks.isEmpty() ||
+            order.size != blocks.size ||
+            order.toSet() != blocks.mapTo(HashSet()) { it.id }
+        ) {
             return blocks
         }
         val byId = blocks.associateBy { it.id }
         val slots = blocks.sortedBy { it.start }
-        return slots.mapIndexed { index, slot ->
-            byId.getValue(order[index]).copy(start = slot.start, end = slot.end)
+        // Total time is invariant (same durations, same gaps), so the day still
+        // starts and ends exactly when the program said — nothing can wrap past
+        // midnight that didn't already.
+        val gaps = List(slots.size - 1) { i ->
+            Duration.between(slots[i].end, slots[i + 1].start)
+        }
+        var cursor = slots.first().start
+        return order.mapIndexed { index, id ->
+            val block = byId.getValue(id)
+            val end = cursor.plusMinutes(block.durationMinutes)
+            block.copy(start = cursor, end = end)
+                .also { if (index < gaps.size) cursor = end.plus(gaps[index]) }
         }
     }
 
