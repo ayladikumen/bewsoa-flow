@@ -75,6 +75,81 @@ class DayReorderTest {
     }
 
     @Test
+    fun `the NOW block dragged to the bottom hands NOW to the new top block`() {
+        // The reported bug: "study" says NOW; dropping it to the bottom must
+        // move NOW to whatever the user put first, not keep it on study.
+        val study = block("study", "19:30", "22:00") // running at 21:40
+        val a = block("a", "22:00", "23:00")
+        val b = block("b", "23:00", "23:30")
+        val now = LocalTime.of(21, 40)
+        val result = DayReorder.retime(
+            ordered = listOf(a, b, study),
+            doneIds = emptySet(),
+            skippedIds = emptySet(),
+            now = now
+        )
+        val current = result.filter { it.start <= now && now < it.end }
+        // Exactly one block is "current", and it's the new top — not study.
+        assertEquals(listOf("a"), current.map { it.id })
+        // Study queues after a (21:40+1h) and b (+30m), and runs to the end of
+        // the day — midnight truncates what physically can't fit tonight.
+        val movedStudy = result.first { it.id == "study" }
+        assertEquals(LocalTime.of(23, 10), movedStudy.start)
+        assertEquals(LocalTime.of(23, 59), movedStudy.end)
+    }
+
+    @Test
+    fun `ended-but-unlogged blocks reflow like any unchecked row`() {
+        // The on-device repro: dinner and free quietly ended on the hidden
+        // clock, study is running. The user drags study below them — to them,
+        // every unchecked row is still "to do", so dinner must take NOW.
+        val dinner = block("dinner", "19:00", "19:30") // ended, never logged
+        val free = block("free", "20:00", "21:00")     // ended, never logged
+        val study = block("study", "21:41", "23:59")   // running
+        val now = LocalTime.of(21, 43)
+        val result = DayReorder.retime(
+            ordered = listOf(dinner, free, study),
+            doneIds = emptySet(),
+            skippedIds = emptySet(),
+            now = now
+        )
+        val current = result.filter { it.start <= now && now < it.end }
+        assertEquals(listOf("dinner"), current.map { it.id })
+        assertEquals(LocalTime.of(21, 43), result[0].start)
+        assertEquals(LocalTime.of(22, 13), result[0].end)
+        // free keeps its hour; study queues last, squeezed only by midnight.
+        assertEquals(60, result[1].durationMinutes.toInt())
+        assertEquals(LocalTime.of(23, 59), result[2].end)
+    }
+
+    @Test
+    fun `midnight truncation is undone on the next drag, not compounded`() {
+        // A previous drag squeezed dinner and free against midnight (0m, end
+        // pinned at 23:59). Dragging study to the bottom must give them their
+        // planned lengths back instead of re-laying the mangled ones.
+        val study = block("study", "21:41", "23:59")
+        val dinner = block("dinner", "23:59", "23:59")
+        val free = block("free", "23:59", "23:59")
+        val now = LocalTime.of(21, 47)
+        val result = DayReorder.retime(
+            ordered = listOf(dinner, free, study),
+            doneIds = emptySet(),
+            skippedIds = emptySet(),
+            now = now,
+            plannedMinutes = mapOf("dinner" to 30, "free" to 60, "study" to 105)
+        )
+        // Dinner takes NOW with its planned half hour, free follows with its
+        // hour, study queues last and absorbs the midnight squeeze alone.
+        assertEquals(LocalTime.of(21, 47), result[0].start)
+        assertEquals(LocalTime.of(22, 17), result[0].end)
+        assertEquals(60, result[1].durationMinutes.toInt())
+        assertEquals(LocalTime.of(23, 17), result[2].start)
+        assertEquals(LocalTime.of(23, 59), result[2].end)
+        val current = result.filter { it.start <= now && now < it.end }
+        assertEquals(listOf("dinner"), current.map { it.id })
+    }
+
+    @Test
     fun `skipped blocks are left alone`() {
         val skip = block("skip", "18:00", "19:00")
         val a = block("a", "20:00", "21:00")

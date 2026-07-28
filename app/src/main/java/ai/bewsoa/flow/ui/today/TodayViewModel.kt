@@ -247,7 +247,9 @@ class TodayViewModel(
                 ordered = ordered.map { it.block },
                 doneIds = ordered.filter { it.done }.mapTo(HashSet()) { it.block.id },
                 skippedIds = ordered.filter { it.skipped }.mapTo(HashSet()) { it.block.id },
-                now = LocalTime.now()
+                now = LocalTime.now(),
+                plannedMinutes = WeeklyProgram.plannedBlocksFor(date.value)
+                    .associate { it.id to it.durationMinutes.toInt() }
             )
             DayOverrides.set(getApplication(), date.value, retimed)
             TaskAlarmScheduler.scheduleUpcoming(getApplication())

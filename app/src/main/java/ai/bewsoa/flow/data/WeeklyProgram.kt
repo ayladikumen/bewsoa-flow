@@ -26,6 +26,15 @@ object WeeklyProgram {
         return DayBlockOrder.applyTo(base, date)
     }
 
+    /**
+     * The plan as the standing program wrote it — no day override, no drag
+     * order. Reorders read durations from here so a block squeezed against
+     * midnight by an earlier drag gets its planned length back on the next.
+     */
+    fun plannedBlocksFor(date: LocalDate): List<TaskBlock> =
+        CustomProgram.current?.get(date.dayOfWeek)?.takeIf { it.isNotEmpty() }
+            ?: builtIn(date)
+
     private fun builtIn(date: LocalDate): List<TaskBlock> = when (date.dayOfWeek) {
         DayOfWeek.SATURDAY -> saturday
         DayOfWeek.SUNDAY -> sunday
