@@ -40,7 +40,7 @@ import ai.bewsoa.flow.ui.theme.Violet
  */
 
 /** Bump alongside versionCode so the What's new overlay shows once per release. */
-const val GUIDE_VERSION = 7
+const val GUIDE_VERSION = 8
 
 private data class Release(val version: String, val changes: List<String>)
 
@@ -48,8 +48,10 @@ private data class GuideSection(val emoji: String, val title: String, val points
 
 private val RELEASES = listOf(
     Release(
-        "3.0 (beta) — the new start",
+        "3.0 — the new start",
         listOf(
+            "Out of beta. Reorder got honest: dragging a block means \"do this next\" — every block keeps its own length, NOW moves to whatever you put on top, and the times reflow from this moment.",
+            "Meals and free blocks are tickable now. They stay out of the streak and XP maths — checking off dinner is just free satisfaction.",
             "A brand-new look: warm paper, big rounded type, pastel checklists and a floating five-button bar with the Week — the real goal — in the middle.",
             "Days are checklists now, not timetables. Blocks show as \"~2h · evening\"; the pace bar keeps you honest about the clock without a single hour grid.",
             "The Assistant is alive: chat about your plan, and it drafts changes. Say \"tonight I'm out\" and it edits just today; only \"every week / from now on\" touches the standing program. Every draft shows Apply buttons — nothing changes silently.",
@@ -113,7 +115,7 @@ private val SECTIONS = listOf(
             "The pace bar: the knob is the day passing (7:00–24:00), the fill is your plan getting done. Fill ahead of knob = you're beating the day.",
             "The goal is the week — ease any single day (skip, reorder, move a task to tomorrow) and let the week absorb it.",
             "A day is \"kept\" at 60% of counted blocks. Never miss twice.",
-            "Hold & drag rows to match the order life actually happened; catch-up collects unlogged blocks behind one line.",
+            "Hold & drag rows to match the order life actually happened — every block keeps its own length, the clock times just reflow. Catch-up collects unlogged blocks behind one line.",
             "My tasks: the + button (or the composer at the bottom) adds in plain words; AI sizes, schedules and splits. Tap a task for its quadrant, steps, tomorrow and delete."
         )
     ),

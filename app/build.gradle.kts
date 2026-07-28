@@ -16,8 +16,8 @@ android {
         // Must stay ahead of the installed build (5) or install is a downgrade.
         // Keep ui/guide/GuideScreen.kt's GUIDE_VERSION in step with versionCode,
         // or the What's new overlay silently never fires.
-        versionCode = 7
-        versionName = "3.0.0-beta.1"
+        versionCode = 8
+        versionName = "3.0.0"
     }
 
     buildTypes {
@@ -28,6 +28,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Personal distribution via GitHub releases: the debug key makes
+            // the minified APK installable without a Play signing setup.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 

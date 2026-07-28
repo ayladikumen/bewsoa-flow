@@ -14,15 +14,26 @@ import java.time.LocalTime
 object WeeklyProgram {
 
     fun blocksFor(date: LocalDate): List<TaskBlock> {
-        // Precedence: a one-time day edit from the assistant beats the standing
-        // program (custom or built-in). Alarms, widgets, streak and XP all read
-        // through here, so an override needs no extra wiring anywhere.
-        val base = DayOverrides.forDate(date)
-            ?: CustomProgram.current?.get(date.dayOfWeek)?.takeIf { it.isNotEmpty() }
+        // Precedence: a one-time day edit (assistant, or a drag on Today —
+        // drags write their retimed result here) beats the standing program.
+        // Alarms, widgets, streak and XP all read through here, so an override
+        // needs no extra wiring anywhere. An override already carries its final
+        // times, so the legacy order layer must not re-permute it.
+        DayOverrides.forDate(date)?.let { return it }
+        val base = CustomProgram.current?.get(date.dayOfWeek)?.takeIf { it.isNotEmpty() }
             ?: builtIn(date)
-        // A drag on Today may have re-slotted this date's blocks.
+        // A pre-3.0 drag may have left a stored order for this date.
         return DayBlockOrder.applyTo(base, date)
     }
+
+    /**
+     * The plan as the standing program wrote it — no day override, no drag
+     * order. Reorders read durations from here so a block squeezed against
+     * midnight by an earlier drag gets its planned length back on the next.
+     */
+    fun plannedBlocksFor(date: LocalDate): List<TaskBlock> =
+        CustomProgram.current?.get(date.dayOfWeek)?.takeIf { it.isNotEmpty() }
+            ?: builtIn(date)
 
     private fun builtIn(date: LocalDate): List<TaskBlock> = when (date.dayOfWeek) {
         DayOfWeek.SATURDAY -> saturday

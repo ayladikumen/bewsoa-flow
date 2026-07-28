@@ -412,7 +412,7 @@ private fun BlockRow(
 ) {
     val palette = LocalPalette.current
     val block = item.block
-    val isCurrent = !item.skipped && now >= block.start && now < block.end
+    val isCurrent = !item.done && !item.skipped && now >= block.start && now < block.end
     val isPastUndone = !item.done && !item.skipped && block.counted && now >= block.end
     val accent = block.track.color()
 
@@ -458,33 +458,34 @@ private fun BlockRow(
             )
         }
         Spacer(Modifier.width(Space.s))
-        if (isCurrent && !item.done) {
+        if (isCurrent) {
             StatusPill("NOW", accent, filled = true)
             Spacer(Modifier.width(Space.s))
         }
-        if (block.counted) {
-            if (item.skipped) {
-                TextButton(onClick = onUnskip) {
-                    Text(
-                        "Undo",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = palette.accent
+        if (item.skipped) {
+            TextButton(onClick = onUnskip) {
+                Text(
+                    "Undo",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = palette.accent
+                )
+            }
+        } else {
+            // Skips spend the weekly budget, so only counted blocks offer one;
+            // meals and free time are still tickable — checking off dinner is
+            // free (0 XP, outside the streak math) but satisfying.
+            if (block.counted && !item.done) {
+                IconButton(onClick = onSkip, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        Icons.Rounded.Block,
+                        contentDescription = "Skip today",
+                        tint = palette.textDim.copy(alpha = 0.7f),
+                        modifier = Modifier.size(17.dp)
                     )
                 }
-            } else {
-                if (!item.done) {
-                    IconButton(onClick = onSkip, modifier = Modifier.size(32.dp)) {
-                        Icon(
-                            Icons.Rounded.Block,
-                            contentDescription = "Skip today",
-                            tint = palette.textDim.copy(alpha = 0.7f),
-                            modifier = Modifier.size(17.dp)
-                        )
-                    }
-                    Spacer(Modifier.width(Space.xs))
-                }
-                RoundCheck(checked = item.done, color = accent, onToggle = onToggle)
+                Spacer(Modifier.width(Space.xs))
             }
+            RoundCheck(checked = item.done, color = accent, onToggle = onToggle)
         }
     }
 }

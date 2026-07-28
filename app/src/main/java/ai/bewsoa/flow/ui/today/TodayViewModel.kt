@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import ai.bewsoa.flow.data.CustomProgram
 import ai.bewsoa.flow.data.DayBlockOrder
 import ai.bewsoa.flow.data.DayOverrides
+import ai.bewsoa.flow.data.DayReorder
 import ai.bewsoa.flow.data.FocusRepository
 import ai.bewsoa.flow.data.LevelInfo
 import ai.bewsoa.flow.data.ProgramDiff
@@ -32,6 +33,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.LocalTime
 
 data class BlockWithStatus(
     val block: TaskBlock,
@@ -230,12 +232,26 @@ class TodayViewModel(
     }
 
     /**
-     * A drag on the block list ended — persist today's new slot assignment and
-     * re-aim everything that depends on block times (reminders, widgets).
+     * A drag on the block list ended — retime the day around the new order
+     * (history keeps its times, the rest reflows from now with each block's
+     * own duration), store it as today's override, and re-aim everything that
+     * depends on block times (reminders, widgets).
      */
-    fun commitBlockOrder(idsInSlotOrder: List<String>) {
+    fun commitBlockOrder(orderedIds: List<String>) {
         viewModelScope.launch {
-            DayBlockOrder.set(getApplication(), date.value, idsInSlotOrder)
+            val current = uiState.value
+            val byId = current.blocks.associateBy { it.block.id }
+            val ordered = orderedIds.mapNotNull { byId[it] }
+            if (ordered.size != current.blocks.size) return@launch // stale drag
+            val retimed = DayReorder.retime(
+                ordered = ordered.map { it.block },
+                doneIds = ordered.filter { it.done }.mapTo(HashSet()) { it.block.id },
+                skippedIds = ordered.filter { it.skipped }.mapTo(HashSet()) { it.block.id },
+                now = LocalTime.now(),
+                plannedMinutes = WeeklyProgram.plannedBlocksFor(date.value)
+                    .associate { it.id to it.durationMinutes.toInt() }
+            )
+            DayOverrides.set(getApplication(), date.value, retimed)
             TaskAlarmScheduler.scheduleUpcoming(getApplication())
             Widgets.refreshAll(getApplication())
         }
