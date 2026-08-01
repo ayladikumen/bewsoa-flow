@@ -13,31 +13,39 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 
 /**
- * Schedules the end-of-block reminders. For every counted block today and
- * tomorrow, an alarm fires [SettingsRepository.reminderOffsetMinutes] minutes
- * after the block's end time.
+ * Wakes the app at every block boundary so the Exact Hour clock changes over
+ * with the schedule instead of at the next time someone opens the app.
  *
- * Scheduling is idempotent: request codes are derived from (date, block index),
- * so re-running simply overwrites the same alarms. It runs on app start, on
- * boot, and from a periodic worker so alarms survive reboots and quiet days.
+ * Both edges, deduplicated: a block's start is when its countdown begins, and
+ * its end matters too — otherwise the last block of the day, and any gap in
+ * the middle of one, would leave a finished countdown sitting on the wall.
+ *
+ * Piggybacks on [TaskAlarmScheduler.scheduleUpcoming], which every "the
+ * schedule changed" path already calls, so there is nothing new to remember to
+ * invoke.
  */
-object TaskAlarmScheduler {
+object ClockAlarmScheduler {
 
     suspend fun scheduleUpcoming(context: Context) {
+        // Integration off: no alarms, no wakeups, no battery.
+        if (!SettingsRepository.get(context).clockEnabled.first()) return
         val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
-        val offset = SettingsRepository.get(context).reminderOffsetMinutes.first().toLong()
         val now = LocalDateTime.now()
 
         for (dayShift in 0L..1L) {
             val date = LocalDate.now().plusDays(dayShift)
-            WeeklyProgram.blocksFor(date).forEachIndexed { index, block ->
-                if (!block.counted) return@forEachIndexed
-                val fireAt = LocalDateTime.of(date, block.end).plusMinutes(offset)
+            val boundaries = WeeklyProgram.blocksFor(date)
+                .flatMap { listOf(it.start, it.end) }
+                .distinct()
+                .sorted()
+
+            boundaries.forEachIndexed { index, time ->
+                val fireAt = LocalDateTime.of(date, time)
                 if (fireAt.isBefore(now)) return@forEachIndexed
 
-                val intent = Intent(context, TaskAlarmReceiver::class.java)
-                    .putExtra(EXTRA_TASK_ID, block.id)
-                    .putExtra(EXTRA_DATE, date.toString())
+                // No extras: the receiver recomputes from current truth, which
+                // makes a leftover alarm from a since-reordered day harmless.
+                val intent = Intent(context, ClockAlarmReceiver::class.java)
                 val pending = PendingIntent.getBroadcast(
                     context,
                     requestCode(date, index),
@@ -49,7 +57,6 @@ object TaskAlarmScheduler {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
                     !alarmManager.canScheduleExactAlarms()
                 ) {
-                    // Exact alarm permission not granted: fall back to a 10-minute window.
                     alarmManager.setWindow(
                         AlarmManager.RTC_WAKEUP, triggerAt, 10 * 60_000L, pending
                     )
@@ -60,14 +67,16 @@ object TaskAlarmScheduler {
                 }
             }
         }
-
-        // The Exact Hour clock mirrors the same block boundaries. Re-aiming one
-        // without the other leaves the wall a schedule behind, so they move
-        // together — and this is what gets the clock's alarms armed from boot
-        // and from the six-hourly sync, neither of which touches the widgets.
-        ClockAlarmScheduler.scheduleUpcoming(context)
     }
 
+    /**
+     * A band of its own, above [TaskAlarmScheduler]'s. Strictly belt-and-braces
+     * — PendingIntent matching includes the target component, and this receiver
+     * is a different class — but it means a future refactor that merges the two
+     * receivers can't silently start overwriting reminders.
+     */
+    private const val BASE = 2_000_000
+
     private fun requestCode(date: LocalDate, index: Int): Int =
-        ((date.toEpochDay() % 20_000L).toInt() * 100) + index
+        BASE + ((date.toEpochDay() % 20_000L).toInt() * 100) + index
 }

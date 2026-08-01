@@ -3,6 +3,7 @@ package ai.bewsoa.flow.data
 import android.content.Context
 import ai.bewsoa.flow.data.db.AppDatabase
 import ai.bewsoa.flow.data.db.FocusSessionEntity
+import ai.bewsoa.flow.data.exacthour.ClockMirror
 import ai.bewsoa.flow.notifications.FocusAlarmReceiver
 import ai.bewsoa.flow.notifications.NotificationHelper
 import kotlinx.coroutines.flow.Flow
@@ -60,6 +61,8 @@ class FocusRepository private constructor(
         settings.setFocusSession(clean, startedAt, safeMinutes)
         FocusAlarmReceiver.schedule(context, clean, endsAt)
         NotificationHelper.showFocusRunning(context, clean, endsAt)
+        // A focus session outranks whatever block is on: put it on the wall.
+        ClockMirror.syncQuietly(context)
     }
 
     /**
@@ -83,6 +86,10 @@ class FocusRepository private constructor(
         )
         // XP only on a confirmed finish — abandon() pays nothing, by design.
         xp.awardFocus(date, sessionId, minutes)
+        // Same rule for the clock: a finish gets the flourish, walking away
+        // doesn't. Only armed here, not pushed — clear() is about to end the
+        // session, and its sync is the one that knows what comes next.
+        ClockMirror.armFlourish(active.label)
         clear()
     }
 
@@ -93,6 +100,8 @@ class FocusRepository private constructor(
         settings.clearFocusSession()
         FocusAlarmReceiver.cancel(context)
         NotificationHelper.cancelFocusRunning(context)
+        // The session is over — hand the wall back to whatever block is on.
+        ClockMirror.syncQuietly(context)
     }
 
     companion object {

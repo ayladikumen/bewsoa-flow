@@ -55,6 +55,7 @@ import ai.bewsoa.flow.data.SettingsRepository
 import ai.bewsoa.flow.data.XpRepository
 import ai.bewsoa.flow.ui.alerts.AlertsScreen
 import ai.bewsoa.flow.ui.chat.ChatScreen
+import ai.bewsoa.flow.ui.clock.ClockScreen
 import ai.bewsoa.flow.ui.components.AppBackground
 import ai.bewsoa.flow.ui.components.CelebrationHost
 import ai.bewsoa.flow.ui.components.pressBounce
@@ -84,6 +85,7 @@ object Routes {
     const val ALERTS = "alerts"
     const val REVIEW = "review"
     const val GUIDE = "guide"
+    const val CLOCK = "clock"
 }
 
 private data class Dest(val route: String, val label: String, val icon: ImageVector)
@@ -153,7 +155,8 @@ fun AppRoot() {
                     composable(Routes.PROFILE) {
                         SettingsScreen(
                             onOpenAlerts = { navController.navigate(Routes.ALERTS) },
-                            onOpenGuide = { navController.navigate(Routes.GUIDE) }
+                            onOpenGuide = { navController.navigate(Routes.GUIDE) },
+                            onOpenClock = { navController.navigate(Routes.CLOCK) }
                         )
                     }
                     composable(Routes.FOCUS) {
@@ -165,6 +168,9 @@ fun AppRoot() {
                     }
                     composable(Routes.REVIEW) {
                         SubScreen("Weekly review", navController::popBackStack) { ReviewScreen() }
+                    }
+                    composable(Routes.CLOCK) {
+                        SubScreen("Exact Hour", navController::popBackStack) { ClockScreen() }
                     }
                     // Guide brings its own back affordance.
                     composable(Routes.GUIDE) {

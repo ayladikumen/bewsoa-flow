@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.glance.appwidget.updateAll
 import androidx.glance.unit.ColorProvider
 import ai.bewsoa.flow.data.SettingsRepository
+import ai.bewsoa.flow.data.exacthour.ClockMirror
 import ai.bewsoa.flow.ui.theme.Palettes
 import kotlinx.coroutines.flow.first
 
@@ -41,5 +42,9 @@ object Widgets {
         FlowWidget().updateAll(context)
         ProgressWidget().updateAll(context)
         StreakWidget().updateAll(context)
+        // The Exact Hour clock is another surface showing "what's on now", so
+        // it re-syncs wherever the widgets do. Costs nothing when nothing
+        // changed — the mirror compares plans before it opens a socket.
+        ClockMirror.syncQuietly(context)
     }
 }

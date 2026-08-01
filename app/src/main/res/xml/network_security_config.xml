@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Exact Hour clock is a plain-HTTP box on the user's own LAN, so cleartext
+  has to be allowed somewhere. Android's network-security-config has no CIDR
+  syntax — "private ranges only" simply cannot be written here. So the rule
+  lives in code instead: data/exacthour/PrivateNet.kt, which every single
+  request passes through, and which is unit-tested.
+
+  What this file still buys us: the two hostnames that carry the user's API
+  keys are pinned back to HTTPS-only below, so no mistyped URL can ever leak
+  them in the clear.
+-->
+<network-security-config>
+
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- The AI API keys live behind these names. Never cleartext, ever. -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">anthropic.com</domain>
+        <domain includeSubdomains="true">googleapis.com</domain>
+    </domain-config>
+
+</network-security-config>

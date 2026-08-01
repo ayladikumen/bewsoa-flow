@@ -80,6 +80,7 @@ private val updatedStamp = DateTimeFormatter.ofPattern("MMM d, HH:mm", Locale.US
 fun SettingsScreen(
     onOpenAlerts: () -> Unit = {},
     onOpenGuide: () -> Unit = {},
+    onOpenClock: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
@@ -279,6 +280,8 @@ fun SettingsScreen(
                 }
             }
         }
+
+        ClockCard(onOpenClock = onOpenClock)
 
         ExportCard(
             exporting = ui.exporting,
@@ -532,8 +535,9 @@ private fun ProviderChip(
     )
 }
 
+/** Internal, not private: the Exact Hour card in ClockSection.kt fields too. */
 @Composable
-private fun programFieldColors() = OutlinedTextFieldDefaults.colors(
+internal fun programFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedBorderColor = Violet,
     unfocusedBorderColor = Outline,
     focusedLabelColor = Cyan,
