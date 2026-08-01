@@ -7,6 +7,7 @@ import ai.bewsoa.flow.data.db.NotificationLogEntity
 import ai.bewsoa.flow.data.db.StreakFreezeEntity
 import ai.bewsoa.flow.data.db.TaskCompletionEntity
 import ai.bewsoa.flow.data.db.WeeklyReviewEntity
+import ai.bewsoa.flow.data.exacthour.ClockMirror
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
@@ -63,7 +64,17 @@ class ProgramRepository private constructor(
         // (screen, widget, notification action, chat tool) pays out the same.
         // Skipping neither awards nor penalises — it just returns any prior award.
         if (state == CompletionState.DONE && previous != CompletionState.DONE) {
-            blocksFor(date).firstOrNull { it.id == taskId }?.let { xp.awardBlock(date, it) }
+            blocksFor(date).firstOrNull { it.id == taskId }?.let {
+                xp.awardBlock(date, it)
+                // The Exact Hour clock celebrates the same moment, on the same
+                // transition — so re-ticking a done block stays silent too.
+                // Only today's: catching up on yesterday's list is bookkeeping,
+                // not something to interrupt the wall with. Armed rather than
+                // pushed, because every caller here follows with a
+                // Widgets.refreshAll, and that sync is the one that also knows
+                // which block is on now.
+                if (date == LocalDate.now()) ClockMirror.armFlourish("${it.track.emoji} ${it.title}")
+            }
         } else if (state != CompletionState.DONE && previous == CompletionState.DONE) {
             xp.revokeBlock(date, taskId)
         }

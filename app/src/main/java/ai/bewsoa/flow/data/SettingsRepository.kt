@@ -131,6 +131,76 @@ class SettingsRepository private constructor(private val context: Context) {
         context.settingsStore.edit { it[KEY_INTENSITY] = value }
     }
 
+    // Exact Hour clock -------------------------------------------------------
+    // The LED matrix clock on the LAN. Everything here is plain local state:
+    // an IP the user typed or discovered, plus the mirror's own bookkeeping.
+
+    val clockEnabled: Flow<Boolean> =
+        context.settingsStore.data.map { it[KEY_CLOCK_ENABLED] ?: false }
+
+    val clockHost: Flow<String> =
+        context.settingsStore.data.map { it[KEY_CLOCK_HOST] ?: "" }
+
+    val clockPort: Flow<Int> =
+        context.settingsStore.data.map { it[KEY_CLOCK_PORT] ?: DEFAULT_CLOCK_PORT }
+
+    /** Whatever the device calls itself — "Exact Hour", or "Exact Hour (demo)". */
+    val clockName: Flow<String> =
+        context.settingsStore.data.map { it[KEY_CLOCK_NAME] ?: "" }
+
+    val clockMirrorFocus: Flow<Boolean> =
+        context.settingsStore.data.map { it[KEY_CLOCK_MIRROR_FOCUS] ?: true }
+
+    val clockMirrorBlocks: Flow<Boolean> =
+        context.settingsStore.data.map { it[KEY_CLOCK_MIRROR_BLOCKS] ?: true }
+
+    /** While this is in the future the auto-mirror keeps its hands off. */
+    val clockHoldUntil: Flow<Long> =
+        context.settingsStore.data.map { it[KEY_CLOCK_HOLD_UNTIL] ?: 0L }
+
+    /** Fingerprint of the last plan successfully pushed — the no-op guard. */
+    val clockLastPlanKey: Flow<String> =
+        context.settingsStore.data.map { it[KEY_CLOCK_LAST_PLAN] ?: "" }
+
+    val clockLastSeenAt: Flow<Long> =
+        context.settingsStore.data.map { it[KEY_CLOCK_LAST_SEEN] ?: 0L }
+
+    suspend fun setClockEnabled(enabled: Boolean) {
+        context.settingsStore.edit { it[KEY_CLOCK_ENABLED] = enabled }
+    }
+
+    /** Host, port and name move together — they're one device, not three settings. */
+    suspend fun setClockEndpoint(host: String, port: Int, name: String = "") {
+        context.settingsStore.edit {
+            it[KEY_CLOCK_HOST] = host.trim()
+            it[KEY_CLOCK_PORT] = if (port in 1..65535) port else DEFAULT_CLOCK_PORT
+            it[KEY_CLOCK_NAME] = name
+            // A different box means the old plan key says nothing about what
+            // this one is showing.
+            it[KEY_CLOCK_LAST_PLAN] = ""
+        }
+    }
+
+    suspend fun setClockMirrorFocus(enabled: Boolean) {
+        context.settingsStore.edit { it[KEY_CLOCK_MIRROR_FOCUS] = enabled }
+    }
+
+    suspend fun setClockMirrorBlocks(enabled: Boolean) {
+        context.settingsStore.edit { it[KEY_CLOCK_MIRROR_BLOCKS] = enabled }
+    }
+
+    suspend fun setClockHoldUntil(epochMillis: Long) {
+        context.settingsStore.edit { it[KEY_CLOCK_HOLD_UNTIL] = epochMillis }
+    }
+
+    suspend fun setClockLastPlanKey(key: String) {
+        context.settingsStore.edit { it[KEY_CLOCK_LAST_PLAN] = key }
+    }
+
+    suspend fun setClockLastSeenAt(epochMillis: Long) {
+        context.settingsStore.edit { it[KEY_CLOCK_LAST_SEEN] = epochMillis }
+    }
+
     // Program override (MD + AI) --------------------------------------------
 
     /** Which AI rebuilds the program: [PROVIDER_CLAUDE] or [PROVIDER_GEMINI]. */
@@ -225,6 +295,9 @@ class SettingsRepository private constructor(private val context: Context) {
         // The 3.0 "new start": Sunrise is the default unless the user has
         // explicitly picked another palette in Settings.
         const val DEFAULT_THEME = "sunrise"
+        const val DEFAULT_CLOCK_PORT = 8080
+        /** How long a manual command on the remote screen pauses the mirror. */
+        const val CLOCK_HOLD_MINUTES = 30
 
         private val KEY_OFFSET = intPreferencesKey("reminder_offset_minutes")
         private val KEY_CAPACITY = intPreferencesKey("daily_capacity_minutes")
@@ -247,6 +320,15 @@ class SettingsRepository private constructor(private val context: Context) {
         private val KEY_PROGRAM_UPDATED = longPreferencesKey("program_updated_at")
         private val KEY_PROPOSAL_JSON = stringPreferencesKey("coach_proposal_json")
         private val KEY_PROPOSAL_NOTE = stringPreferencesKey("coach_proposal_note")
+        private val KEY_CLOCK_ENABLED = booleanPreferencesKey("exact_hour_enabled")
+        private val KEY_CLOCK_HOST = stringPreferencesKey("exact_hour_host")
+        private val KEY_CLOCK_PORT = intPreferencesKey("exact_hour_port")
+        private val KEY_CLOCK_NAME = stringPreferencesKey("exact_hour_name")
+        private val KEY_CLOCK_MIRROR_FOCUS = booleanPreferencesKey("exact_hour_mirror_focus")
+        private val KEY_CLOCK_MIRROR_BLOCKS = booleanPreferencesKey("exact_hour_mirror_blocks")
+        private val KEY_CLOCK_HOLD_UNTIL = longPreferencesKey("exact_hour_hold_until")
+        private val KEY_CLOCK_LAST_PLAN = stringPreferencesKey("exact_hour_last_plan_key")
+        private val KEY_CLOCK_LAST_SEEN = longPreferencesKey("exact_hour_last_seen_at")
 
         @Volatile
         private var instance: SettingsRepository? = null
