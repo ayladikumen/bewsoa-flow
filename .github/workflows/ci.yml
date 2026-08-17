@@ -90,10 +90,26 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag || github.ref_name }}
+          APK: app/build/outputs/apk/release/app-release.apk
+          AAB: app/build/outputs/bundle/release/app-release.aab
         run: |
-          gh release create "$TAG" \
-            --title "Bewsoa Flow $TAG" \
-            --generate-notes \
-            --target "$GITHUB_SHA" \
-            app/build/outputs/apk/release/app-release.apk \
-            app/build/outputs/bundle/release/app-release.aab
+          # api.github.com hands out 503s during incidents, and a five-minute
+          # build shouldn't be thrown away over one. If a retry finds the
+          # release already there, attach the files to it rather than failing.
+          for attempt in 1 2 3 4 5; do
+            if gh release create "$TAG" \
+                 --title "Bewsoa Flow $TAG" \
+                 --generate-notes \
+                 --target "$GITHUB_SHA" \
+                 "$APK" "$AAB"
+            then
+              exit 0
+            fi
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              gh release upload "$TAG" --clobber "$APK" "$AAB" && exit 0
+            fi
+            echo "Publish attempt $attempt failed; retrying in $((attempt * 20))s."
+            sleep $((attempt * 20))
+          done
+          echo "::error::Could not publish $TAG after 5 attempts."
+          exit 1
