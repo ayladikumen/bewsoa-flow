@@ -321,7 +321,7 @@ fun SettingsScreen(
             SectionHeader("About")
             Spacer(Modifier.height(8.dp))
             Text(
-                "Bewsoa Flow v1.4",
+                "Bewsoa Flow v3.1",
                 style = MaterialTheme.typography.bodyMedium,
                 color = TextBright
             )

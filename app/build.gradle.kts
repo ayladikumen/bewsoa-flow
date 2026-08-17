@@ -16,8 +16,8 @@ android {
         // Must stay ahead of the installed build (5) or install is a downgrade.
         // Keep ui/guide/GuideScreen.kt's GUIDE_VERSION in step with versionCode,
         // or the What's new overlay silently never fires.
-        versionCode = 8
-        versionName = "3.0.0"
+        versionCode = 9
+        versionName = "3.1.0"
     }
 
     buildTypes {

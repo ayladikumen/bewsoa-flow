@@ -40,13 +40,23 @@ import ai.bewsoa.flow.ui.theme.Violet
  */
 
 /** Bump alongside versionCode so the What's new overlay shows once per release. */
-const val GUIDE_VERSION = 8
+const val GUIDE_VERSION = 9
 
 private data class Release(val version: String, val changes: List<String>)
 
 private data class GuideSection(val emoji: String, val title: String, val points: List<String>)
 
 private val RELEASES = listOf(
+    Release(
+        "3.1 — build your own week",
+        listOf(
+            "New: the weekly program builder. Describe your week in plain words — \"school Mon–Fri 08:00–16:00, gym Mon/Wed/Fri at 18:00, TYT Saturday morning\" — and it drafts the whole Monday–Sunday program for you to edit.",
+            "Or build it by hand: pick a day, add blocks, tap one to change its title, track, times and note. Duplicate a block, repeat it on other days, move it to another day, copy or clear a whole day.",
+            "Six starter templates — Study Focus, Balanced, Gym + Study, Exam Prep, Project Focus, Empty Week — or load your current week and edit that.",
+            "Nothing is saved while you edit: overlapping or impossible times get flagged, a plain-English diff shows exactly what changes, and only \"Save weekly program\" makes it real.",
+            "Reach it from Week (\"Your weekly program\"), the Assistant's calendar button, or Profile → Program. It always edits the recurring week — one-off changes are still the Assistant's job."
+        )
+    ),
     Release(
         "3.0 — the new start",
         listOf(
