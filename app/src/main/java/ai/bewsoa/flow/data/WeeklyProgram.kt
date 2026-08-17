@@ -45,12 +45,22 @@ object WeeklyProgram {
         blocksFor(date).firstOrNull { it.id == id }
 
     /** The active program (custom or built-in) as a per-weekday map, for diffing. */
-    fun weekMap(): Map<DayOfWeek, List<TaskBlock>> {
+    fun weekMap(): Map<DayOfWeek, List<TaskBlock>> = mapWeek(::blocksFor)
+
+    /**
+     * The standing recurring program as a per-weekday map — custom if one is
+     * active, otherwise built-in, and never a one-time day override. This is
+     * what the weekly program builder edits and diffs against: an override is a
+     * margin note about one date and must not become a recurring change.
+     */
+    fun standingWeekMap(): Map<DayOfWeek, List<TaskBlock>> = mapWeek(::plannedBlocksFor)
+
+    private fun mapWeek(source: (LocalDate) -> List<TaskBlock>): Map<DayOfWeek, List<TaskBlock>> {
         val monday = LocalDate.now().with(
             java.time.temporal.TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)
         )
         return DayOfWeek.entries.associateWith { day ->
-            blocksFor(monday.plusDays((day.value - 1).toLong()))
+            source(monday.plusDays((day.value - 1).toLong()))
         }
     }
 

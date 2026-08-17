@@ -20,6 +20,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -39,9 +40,13 @@ import ai.bewsoa.flow.data.Track
 import ai.bewsoa.flow.data.TrackStat
 import ai.bewsoa.flow.data.WeekStats
 import ai.bewsoa.flow.ui.AppViewModelProvider
+import ai.bewsoa.flow.ui.program.BuilderStart
 import ai.bewsoa.flow.ui.components.Card
+import ai.bewsoa.flow.ui.components.CardTone
 import ai.bewsoa.flow.ui.components.DayMark
 import ai.bewsoa.flow.ui.components.DraftCard
+import ai.bewsoa.flow.ui.components.GhostButton
+import ai.bewsoa.flow.ui.components.PrimaryButton
 import ai.bewsoa.flow.ui.components.ProgressRing
 import ai.bewsoa.flow.ui.components.SectionLabel
 import ai.bewsoa.flow.ui.components.StatBar
@@ -67,11 +72,13 @@ import kotlin.math.roundToInt
 @Composable
 fun WeekScreen(
     onOpenReview: () -> Unit = {},
+    onOpenBuilder: (BuilderStart) -> Unit = {},
     viewModel: ProgressViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val plan by viewModel.planState.collectAsStateWithLifecycle()
     val proposal by viewModel.proposal.collectAsStateWithLifecycle()
+    val customProgram by viewModel.customProgramActive.collectAsStateWithLifecycle()
     val stats = state.stats
 
     val context = LocalContext.current
@@ -129,6 +136,10 @@ fun WeekScreen(
         state.xp.lastChest?.let { chest ->
             item(key = "last_chest") { LastChestCard(chest, viewModel::openLastChest) }
         }
+        item(key = "program_head") { SectionLabel("Your weekly program") }
+        item(key = "program_entry") {
+            ProgramEntryCard(customActive = customProgram, onOpenBuilder = onOpenBuilder)
+        }
         item(key = "plan_head") { SectionLabel("The plan · any day, any week") }
         item(key = "plan") {
             PlanCard(
@@ -151,6 +162,81 @@ fun WeekScreen(
         }
         item(key = "review") { ReviewEntryCard(onOpenReview) }
         item(key = "rule") { NeverMissTwiceCard() }
+    }
+}
+
+/**
+ * The way into the weekly program builder — and, before there is a custom
+ * program, the loudest thing on the tab. The three starting points map onto the
+ * builder's entry points; every one of them opens a draft, never an edit of the
+ * live program.
+ */
+@Composable
+private fun ProgramEntryCard(
+    customActive: Boolean,
+    onOpenBuilder: (BuilderStart) -> Unit
+) {
+    val palette = LocalPalette.current
+    Card(tone = if (customActive) CardTone.Plain else CardTone.Accent(palette.accent)) {
+        Text(
+            if (customActive) "Your week, your rules" else "Your week is still using the default plan.",
+            style = MaterialTheme.typography.titleLarge,
+            color = palette.textBright
+        )
+        Spacer(Modifier.height(Space.xs))
+        Text(
+            if (customActive) {
+                "Edit the recurring Monday–Sunday program, or have the AI redraft it. " +
+                    "Nothing changes until you save."
+            } else {
+                "Build a recurring Monday–Sunday program of your own — describe it, " +
+                    "or start from the week you already have."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = palette.textDim
+        )
+        Spacer(Modifier.height(Space.l))
+        if (customActive) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
+                PrimaryButton(
+                    text = "Edit weekly program",
+                    onClick = { onOpenBuilder(BuilderStart.CURRENT) },
+                    modifier = Modifier.weight(1.4f)
+                )
+                GhostButton(
+                    text = "Build with AI",
+                    onClick = { onOpenBuilder(BuilderStart.AI) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Spacer(Modifier.height(Space.s))
+            TextButton(onClick = { onOpenBuilder(BuilderStart.SCRATCH) }) {
+                Text(
+                    "Start a new program from scratch",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = palette.textDim
+                )
+            }
+        } else {
+            PrimaryButton(
+                text = "Build with AI",
+                onClick = { onOpenBuilder(BuilderStart.AI) },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(Space.s))
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
+                GhostButton(
+                    text = "Start from scratch",
+                    onClick = { onOpenBuilder(BuilderStart.SCRATCH) },
+                    modifier = Modifier.weight(1f)
+                )
+                GhostButton(
+                    text = "Use current week",
+                    onClick = { onOpenBuilder(BuilderStart.CURRENT) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
     }
 }
 

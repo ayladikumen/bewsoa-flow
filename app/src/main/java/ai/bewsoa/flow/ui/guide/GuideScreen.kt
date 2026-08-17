@@ -129,6 +129,17 @@ private val SECTIONS = listOf(
         )
     ),
     GuideSection(
+        "🛠️", "Weekly program builder",
+        listOf(
+            "Reachable from Week (\"Your weekly program\"), the Assistant's calendar button, or Profile → Program.",
+            "Build with AI: describe the week in plain words — \"school Mon–Fri 08:00–16:00, gym Mon/Wed/Fri at 18:00, TYT Saturday morning\" — and it drafts the whole Monday–Sunday program.",
+            "Or build it by hand: pick a day, add blocks, tap one to edit its title, track, times and note. Duplicate it, repeat it on other days, move it to another day, copy or clear a whole day.",
+            "Templates (Study Focus, Balanced, Gym + Study, Exam Prep, Project Focus, Empty Week) are starting points — or load your current week and edit that.",
+            "Nothing is saved while you edit: overlaps and impossible times are flagged, the diff shows exactly what changes, and only \"Save weekly program\" makes it real.",
+            "It always edits the recurring program. A change for one day only is still the Assistant's job."
+        )
+    ),
+    GuideSection(
         "✨", "Assistant",
         listOf(
             "Chat about your plan: what's left, how the week looks, what to do next.",
@@ -173,7 +184,7 @@ private val SECTIONS = listOf(
         "👤", "Profile",
         listOf(
             "Themes — Sunrise is the new default; the old dark looks are still there, and widgets recolor with your pick.",
-            "Program: edit the week as markdown and let Claude or Gemini rebuild it. API keys never leave this phone.",
+            "Program: edit the week as markdown and let Claude or Gemini rebuild it, or open the builder for the guided version. API keys never leave this phone.",
             "The Sunday coach's draft appears on Week — you always accept or dismiss it yourself.",
             "Your data: export everything as CSV, JSON or Markdown."
         )

@@ -131,14 +131,17 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
             AiProgramUpdater.rebuild(
                 state.provider, state.apiKey.trim(), state.mdText, currentJson, state.changeText
             )
-                .onSuccess { json ->
+                .mapCatching { json ->
                     val oldProgram = WeeklyProgram.weekMap()
                     val newProgram = CustomProgram.parse(json).getOrNull()
-                    settings.setProgram(json, state.mdText)
-                    CustomProgram.activate(json)
-                    // Tomorrow's reminders must follow the new schedule.
-                    TaskAlarmScheduler.scheduleUpcoming(getApplication())
-                    Widgets.refreshAll(getApplication())
+                    // One shared pipeline: validate, persist, activate, then
+                    // refresh alarms and widgets.
+                    ProgramRepository.get(getApplication())
+                        .saveWeeklyProgram(json, state.mdText)
+                        .getOrThrow()
+                    oldProgram to newProgram
+                }
+                .onSuccess { (oldProgram, newProgram) ->
                     _ui.value = _ui.value.copy(
                         loading = false,
                         customActive = true,

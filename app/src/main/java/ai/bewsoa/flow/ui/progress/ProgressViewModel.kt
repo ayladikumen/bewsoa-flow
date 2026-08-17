@@ -23,7 +23,6 @@ import ai.bewsoa.flow.data.Xp
 import ai.bewsoa.flow.data.XpRepository
 import ai.bewsoa.flow.data.buildWeekStats
 import ai.bewsoa.flow.data.db.CompletionState
-import ai.bewsoa.flow.notifications.TaskAlarmScheduler
 import ai.bewsoa.flow.ui.today.CoachProposal
 import ai.bewsoa.flow.widget.Widgets
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -177,17 +176,27 @@ class ProgressViewModel(
     fun acceptProposal() {
         viewModelScope.launch {
             val pending = proposal.value ?: return@launch
-            settings.setProgramJson(pending.json)
-            CustomProgram.activate(pending.json)
-            TaskAlarmScheduler.scheduleUpcoming(getApplication())
-            settings.clearPendingProposal()
-            Widgets.refreshAll(getApplication())
+            // The shared save pipeline; the draft only clears once it took.
+            repo.saveWeeklyProgram(pending.json).onSuccess {
+                settings.clearPendingProposal()
+            }
         }
     }
 
     fun dismissProposal() {
         viewModelScope.launch { settings.clearPendingProposal() }
     }
+
+    /**
+     * Whether a custom weekly program is active. Drives the program-builder
+     * entry card: a first-timer gets the "still on the default plan" CTA,
+     * everyone else gets "edit your week".
+     */
+    val customProgramActive: StateFlow<Boolean> = combine(
+        settings.programJson,
+        CustomProgram.version
+    ) { json, _ -> json != null }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     fun openLastChest() {
         viewModelScope.launch { xpRepo.openChest(weekStart.minusWeeks(1)) }

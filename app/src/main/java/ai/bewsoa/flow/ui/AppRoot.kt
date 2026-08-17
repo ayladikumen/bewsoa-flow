@@ -47,10 +47,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import ai.bewsoa.flow.data.SettingsRepository
 import ai.bewsoa.flow.data.XpRepository
 import ai.bewsoa.flow.ui.alerts.AlertsScreen
@@ -65,6 +67,8 @@ import ai.bewsoa.flow.ui.guide.GUIDE_VERSION
 import ai.bewsoa.flow.ui.guide.GuideScreen
 import ai.bewsoa.flow.ui.guide.WhatsNewOverlay
 import ai.bewsoa.flow.ui.home.HomeScreen
+import ai.bewsoa.flow.ui.program.BuilderStart
+import ai.bewsoa.flow.ui.program.ProgramBuilderScreen
 import ai.bewsoa.flow.ui.progress.WeekScreen
 import ai.bewsoa.flow.ui.review.ReviewScreen
 import ai.bewsoa.flow.ui.settings.SettingsScreen
@@ -86,6 +90,17 @@ object Routes {
     const val REVIEW = "review"
     const val GUIDE = "guide"
     const val CLOCK = "clock"
+
+    /**
+     * The weekly program builder. The path argument carries which entry point
+     * opened it (see [ai.bewsoa.flow.ui.program.BuilderStart]), so "Build with
+     * AI" and "Use current week" land on the right starting point.
+     */
+    const val PROGRAM_BUILDER = "program_builder"
+    const val PROGRAM_BUILDER_ARG = "start"
+
+    fun programBuilder(start: BuilderStart = BuilderStart.MENU): String =
+        "$PROGRAM_BUILDER/${start.name}"
 }
 
 private data class Dest(val route: String, val label: String, val icon: ImageVector)
@@ -149,14 +164,46 @@ fun AppRoot() {
                     }
                     composable(Routes.DAY) { DayScreen() }
                     composable(Routes.WEEK) {
-                        WeekScreen(onOpenReview = { navController.navigate(Routes.REVIEW) })
+                        WeekScreen(
+                            onOpenReview = { navController.navigate(Routes.REVIEW) },
+                            onOpenBuilder = { start ->
+                                navController.navigate(Routes.programBuilder(start))
+                            }
+                        )
                     }
-                    composable(Routes.CHAT) { ChatScreen() }
+                    composable(Routes.CHAT) {
+                        ChatScreen(
+                            onOpenBuilder = {
+                                navController.navigate(Routes.programBuilder(BuilderStart.MENU))
+                            }
+                        )
+                    }
                     composable(Routes.PROFILE) {
                         SettingsScreen(
                             onOpenAlerts = { navController.navigate(Routes.ALERTS) },
                             onOpenGuide = { navController.navigate(Routes.GUIDE) },
-                            onOpenClock = { navController.navigate(Routes.CLOCK) }
+                            onOpenClock = { navController.navigate(Routes.CLOCK) },
+                            onOpenBuilder = {
+                                navController.navigate(Routes.programBuilder(BuilderStart.SCRATCH))
+                            }
+                        )
+                    }
+                    // The builder brings its own header, back affordance and
+                    // discard prompt, so it is pushed bare.
+                    composable(
+                        route = "${Routes.PROGRAM_BUILDER}/{${Routes.PROGRAM_BUILDER_ARG}}",
+                        arguments = listOf(
+                            navArgument(Routes.PROGRAM_BUILDER_ARG) {
+                                type = NavType.StringType
+                                defaultValue = BuilderStart.MENU.name
+                            }
+                        )
+                    ) { entry ->
+                        ProgramBuilderScreen(
+                            start = BuilderStart.of(
+                                entry.arguments?.getString(Routes.PROGRAM_BUILDER_ARG)
+                            ),
+                            onClose = { navController.popBackStack() }
                         )
                     }
                     composable(Routes.FOCUS) {

@@ -81,6 +81,7 @@ fun SettingsScreen(
     onOpenAlerts: () -> Unit = {},
     onOpenGuide: () -> Unit = {},
     onOpenClock: () -> Unit = {},
+    onOpenBuilder: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
@@ -267,6 +268,22 @@ fun SettingsScreen(
                         modifier = Modifier.padding(vertical = 2.dp)
                     )
                 }
+            }
+            // The free-text box above rewrites the program in one shot; this is
+            // the way to the guided builder, where a week is previewed, edited
+            // block by block and diffed before anything is saved.
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = onOpenBuilder,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Outline)
+            ) {
+                Text(
+                    "Start from scratch → Open builder",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = TextBright
+                )
             }
             if (ui.customActive) {
                 Row(

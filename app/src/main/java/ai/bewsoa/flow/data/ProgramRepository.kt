@@ -8,6 +8,8 @@ import ai.bewsoa.flow.data.db.StreakFreezeEntity
 import ai.bewsoa.flow.data.db.TaskCompletionEntity
 import ai.bewsoa.flow.data.db.WeeklyReviewEntity
 import ai.bewsoa.flow.data.exacthour.ClockMirror
+import ai.bewsoa.flow.notifications.TaskAlarmScheduler
+import ai.bewsoa.flow.widget.Widgets
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
@@ -23,11 +25,51 @@ data class SkipBudget(val used: Int, val cap: Int) {
 }
 
 class ProgramRepository private constructor(
+    private val context: Context,
     private val db: AppDatabase,
     private val xp: XpRepository
 ) {
 
     fun blocksFor(date: LocalDate): List<TaskBlock> = WeeklyProgram.blocksFor(date)
+
+    // The standing weekly program ---------------------------------------------
+
+    /**
+     * The recurring Monday–Sunday program as an editable draft — the custom
+     * program when one is active, otherwise the built-in week. Day overrides are
+     * not consulted: this is the standing program, not what today happens to
+     * look like.
+     */
+    fun standingProgramDraft(): WeeklyProgramDraft =
+        WeeklyProgramDraft.of(WeeklyProgram.standingWeekMap())
+
+    /**
+     * The one place a weekly program is installed. Chat's week draft, the AI
+     * builder and the manual builder all come through here, so the
+     * validate → persist → activate → alarms → widgets sequence exists once.
+     *
+     * Nothing changes when [json] doesn't parse: the schedule is validated
+     * before anything is written, and the old program stays active.
+     * [markdown] is only passed by the flow that also owns the markdown source.
+     */
+    suspend fun saveWeeklyProgram(json: String, markdown: String? = null): Result<Unit> =
+        runCatching {
+            val validation = WeeklyProgramValidator.validateJson(json)
+            val blocker = validation.errors.firstOrNull()
+            if (blocker != null) error(blocker.message)
+
+            val settings = SettingsRepository.get(context)
+            if (markdown != null) {
+                settings.setProgram(json, markdown)
+            } else {
+                settings.setProgramJson(json)
+            }
+            // Bumps CustomProgram.version, which is what makes every screen,
+            // widget and stat re-read the plan immediately.
+            CustomProgram.activate(json).getOrThrow()
+            TaskAlarmScheduler.scheduleUpcoming(context)
+            Widgets.refreshAll(context)
+        }
 
     fun observeDay(date: LocalDate): Flow<List<TaskCompletionEntity>> =
         db.completionDao().observeForDate(date.toString())
@@ -218,6 +260,7 @@ class ProgramRepository private constructor(
         fun get(context: Context): ProgramRepository =
             instance ?: synchronized(this) {
                 instance ?: ProgramRepository(
+                    context.applicationContext,
                     AppDatabase.getInstance(context),
                     XpRepository.get(context)
                 ).also { instance = it }

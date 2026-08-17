@@ -5,7 +5,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import ai.bewsoa.flow.data.AiAssistant
 import ai.bewsoa.flow.data.ChatMessage
-import ai.bewsoa.flow.data.CustomProgram
 import ai.bewsoa.flow.data.ProgramRepository
 import ai.bewsoa.flow.data.SettingsRepository
 import ai.bewsoa.flow.data.TaskRepository
@@ -38,8 +37,9 @@ data class ChatUiState(
 /**
  * Owns the assistant conversation: persists the transcript, runs a turn with a
  * fresh context snapshot, holds the pending draft, and is the only place a
- * draft is actually applied — day edits land in [DayOverrides] (once),
- * permanent ones rewrite [CustomProgram], tasks insert via [TaskRepository].
+ * draft is actually applied — day edits land in [DayOverrides] (once), permanent
+ * ones go through [ProgramRepository.saveWeeklyProgram] (the same save path the
+ * weekly program builder uses), tasks insert via [TaskRepository].
  */
 class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -128,26 +128,41 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun applyDraft() {
         val draft = transient.value.draft ?: return
         viewModelScope.launch {
-            when (draft) {
+            val applied = when (draft) {
                 is AiAssistant.Draft.Day -> {
                     DayOverrides.set(getApplication(), draft.date, draft.blocks)
                     TaskAlarmScheduler.scheduleUpcoming(getApplication())
                     Widgets.refreshAll(getApplication())
                     append(confirmation("Done — ${friendlyDate(draft.date)}'s plan is updated, just for that day."))
+                    true
                 }
                 is AiAssistant.Draft.Week -> {
-                    settings.setProgramJson(draft.json)
-                    CustomProgram.activate(draft.json)
-                    TaskAlarmScheduler.scheduleUpcoming(getApplication())
-                    Widgets.refreshAll(getApplication())
-                    append(confirmation("Done — your standing weekly program is updated."))
+                    // The shared save pipeline: validate, persist, activate,
+                    // alarms, widgets. Same path the program builder uses.
+                    programRepo.saveWeeklyProgram(draft.json).fold(
+                        onSuccess = {
+                            append(confirmation("Done — your standing weekly program is updated."))
+                            true
+                        },
+                        onFailure = { e ->
+                            append(
+                                confirmation(
+                                    "⚠️ Couldn't save that week — ${e.message ?: "try again."} " +
+                                        "Your program is unchanged."
+                                )
+                            )
+                            false
+                        }
+                    )
                 }
                 is AiAssistant.Draft.NewTask -> {
                     taskRepo.addParsedTask(draft.task)
                     append(confirmation("Task added: “${draft.task.title}” ✓"))
+                    true
                 }
             }
-            transient.update { it.copy(draft = null) }
+            // A failed save keeps the draft on screen, so Apply can be retried.
+            if (applied) transient.update { it.copy(draft = null) }
         }
     }
 

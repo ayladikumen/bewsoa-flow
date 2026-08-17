@@ -14,6 +14,7 @@ import ai.bewsoa.flow.ui.chat.ChatViewModel
 import ai.bewsoa.flow.ui.clock.ClockRemoteViewModel
 import ai.bewsoa.flow.ui.focus.FocusViewModel
 import ai.bewsoa.flow.ui.settings.ClockSetupViewModel
+import ai.bewsoa.flow.ui.program.ProgramBuilderViewModel
 import ai.bewsoa.flow.ui.progress.ProgressViewModel
 import ai.bewsoa.flow.ui.review.ReviewViewModel
 import ai.bewsoa.flow.ui.settings.SettingsViewModel
@@ -58,6 +59,10 @@ object AppViewModelProvider {
         initializer {
             val app = this[APPLICATION_KEY] as BewsoaFlowApp
             ChatViewModel(app)
+        }
+        initializer {
+            val app = this[APPLICATION_KEY] as BewsoaFlowApp
+            ProgramBuilderViewModel(app, ProgramRepository.get(app))
         }
         initializer {
             val app = this[APPLICATION_KEY] as BewsoaFlowApp

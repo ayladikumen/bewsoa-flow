@@ -50,6 +50,23 @@ object AiProgramUpdater {
             "works. Keep every unchanged block's id identical. Summarize what you changed " +
             "and why in the coachNote field, in 2-3 encouraging sentences."
 
+    /**
+     * Framing for the weekly program builder: the user describes a week in plain
+     * words instead of editing a markdown file, and the result is a draft they
+     * will preview and edit before anything is saved. Same schema, same rules —
+     * only the brief changes.
+     */
+    private const val BUILDER_ADDENDUM =
+        " You are now the weekly program builder. The user describes the week they " +
+            "want in plain language; turn it into a complete, realistic Monday–Sunday " +
+            "schedule. Honour the days, times and commitments they name, and fill the " +
+            "rest sensibly: meals around long stretches, a free-time block to end each " +
+            "day, and a weekly review on Sunday. Do not overfill a day — leave breathing " +
+            "room instead of stacking blocks back to back for 16 hours. When they are " +
+            "reworking a week you already drafted, keep every block they didn't ask you " +
+            "to touch identical, with the same id. This is a draft: the user previews, " +
+            "edits and saves it themselves."
+
     private val DAYS = listOf(
         "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"
     )
@@ -124,6 +141,36 @@ object AiProgramUpdater {
         }
 
     /**
+     * The weekly program builder's generate step: a natural-language description
+     * of a week in, a full schedule JSON out. [baseJson] is the week already on
+     * the builder's canvas, if any, so "make it more realistic" reworks what the
+     * user is looking at instead of starting over.
+     *
+     * The result is a validated draft — it is never activated here.
+     */
+    suspend fun buildWeek(
+        provider: String,
+        apiKey: String,
+        request: String,
+        baseJson: String? = null
+    ): Result<String> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val userMessage = buildString {
+                    if (baseJson != null) {
+                        append("Here is the week the user is editing (a draft, not yet saved):\n\n")
+                        append(baseJson)
+                        append("\n\nRework it as they ask:\n")
+                    } else {
+                        append("Build a complete Monday–Sunday week from this description:\n\n")
+                    }
+                    append(request)
+                }
+                call(provider, apiKey, userMessage, SYSTEM_PROMPT + BUILDER_ADDENDUM)
+            }
+        }
+
+    /**
      * The weekly coach: reads the current program, the month's adherence
      * insights, and the latest review notes, and drafts next week's schedule.
      */
@@ -157,29 +204,41 @@ object AiProgramUpdater {
                     }
                     append("\nPropose next week's schedule.")
                 }
-                val json = call(provider, apiKey, userMessage, coach = true)
+                val json = call(
+                    provider,
+                    apiKey,
+                    userMessage,
+                    SYSTEM_PROMPT + COACH_ADDENDUM,
+                    coach = true
+                )
                 Proposal(json, JSONObject(json).optString("coachNote"))
             }
         }
 
+    /**
+     * One request path for every consumer — free-text rebuild, the coach and the
+     * builder. Only [system] and the coachNote slot differ between them; the
+     * schedule schema is shared, and so is the error handling.
+     */
     private fun call(
         provider: String,
         apiKey: String,
         userMessage: String,
+        system: String = SYSTEM_PROMPT,
         coach: Boolean = false
     ): String {
         val programJson = if (provider == SettingsRepository.PROVIDER_GEMINI) {
             val response = post(
                 GEMINI_ENDPOINT,
                 mapOf("x-goog-api-key" to apiKey),
-                buildGeminiBody(userMessage, coach)
+                buildGeminiBody(userMessage, system, coach)
             )
             extractGeminiText(response)
         } else {
             val response = post(
                 CLAUDE_ENDPOINT,
                 mapOf("x-api-key" to apiKey, "anthropic-version" to "2023-06-01"),
-                buildClaudeBody(userMessage, coach)
+                buildClaudeBody(userMessage, system, coach)
             )
             extractClaudeText(response)
         }
@@ -223,11 +282,15 @@ object AiProgramUpdater {
         .put("type", "string")
         .put("description", "2-3 sentences: what you changed and why, grounded in the insights")
 
-    private fun buildClaudeBody(userMessage: String, coach: Boolean): String = JSONObject()
+    private fun buildClaudeBody(
+        userMessage: String,
+        system: String,
+        coach: Boolean
+    ): String = JSONObject()
         .put("model", CLAUDE_MODEL)
         .put("max_tokens", 16000)
         .put("thinking", JSONObject().put("type", "adaptive"))
-        .put("system", if (coach) SYSTEM_PROMPT + COACH_ADDENDUM else SYSTEM_PROMPT)
+        .put("system", system)
         .put(
             "output_config",
             JSONObject().put(
@@ -262,18 +325,14 @@ object AiProgramUpdater {
 
     // Gemini ------------------------------------------------------------------
 
-    private fun buildGeminiBody(userMessage: String, coach: Boolean): String = JSONObject()
+    private fun buildGeminiBody(
+        userMessage: String,
+        system: String,
+        coach: Boolean
+    ): String = JSONObject()
         .put(
             "system_instruction",
-            JSONObject().put(
-                "parts",
-                JSONArray().put(
-                    JSONObject().put(
-                        "text",
-                        if (coach) SYSTEM_PROMPT + COACH_ADDENDUM else SYSTEM_PROMPT
-                    )
-                )
-            )
+            JSONObject().put("parts", JSONArray().put(JSONObject().put("text", system)))
         )
         .put(
             "contents",

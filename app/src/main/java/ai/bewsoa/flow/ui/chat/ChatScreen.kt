@@ -33,6 +33,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -78,6 +79,7 @@ import java.util.Locale
  */
 @Composable
 fun ChatScreen(
+    onOpenBuilder: () -> Unit = {},
     viewModel: ChatViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
     val palette = LocalPalette.current
@@ -98,13 +100,15 @@ fun ChatScreen(
     ) {
         ChatHeader(
             hasHistory = state.messages.isNotEmpty(),
-            onClear = viewModel::clearConversation
+            onClear = viewModel::clearConversation,
+            onOpenBuilder = onOpenBuilder
         )
 
         Box(Modifier.weight(1f)) {
             if (state.messages.isEmpty() && !state.busy) {
                 EmptyChat(
                     aiAvailable = state.aiAvailable,
+                    onOpenBuilder = onOpenBuilder,
                     onSuggestion = { text, sendNow ->
                         if (sendNow) viewModel.send(text) else input = text
                     }
@@ -159,7 +163,11 @@ fun ChatScreen(
 }
 
 @Composable
-private fun ChatHeader(hasHistory: Boolean, onClear: () -> Unit) {
+private fun ChatHeader(
+    hasHistory: Boolean,
+    onClear: () -> Unit,
+    onOpenBuilder: () -> Unit
+) {
     val palette = LocalPalette.current
     Row(
         modifier = Modifier
@@ -194,6 +202,15 @@ private fun ChatHeader(hasHistory: Boolean, onClear: () -> Unit) {
                 color = palette.textDim
             )
         }
+        // Building a whole recurring week is a workflow, not a chat turn — this
+        // hands it to the dedicated builder instead.
+        IconButton(onClick = onOpenBuilder) {
+            Icon(
+                Icons.Rounded.CalendarMonth,
+                contentDescription = "Create a new weekly program",
+                tint = palette.textDim
+            )
+        }
         if (hasHistory) {
             IconButton(onClick = onClear) {
                 Icon(
@@ -210,6 +227,7 @@ private fun ChatHeader(hasHistory: Boolean, onClear: () -> Unit) {
 @Composable
 private fun EmptyChat(
     aiAvailable: Boolean,
+    onOpenBuilder: () -> Unit,
     onSuggestion: (text: String, sendNow: Boolean) -> Unit
 ) {
     val palette = LocalPalette.current
@@ -250,8 +268,15 @@ private fun EmptyChat(
             textAlign = TextAlign.Center,
             modifier = Modifier.appear(2)
         )
+        Spacer(Modifier.height(Space.xl))
+        // Always offered, key or not: the builder works by hand too.
+        SuggestionCard(
+            "🗓️", "Create a new weekly program", "Opens the builder",
+            Modifier.fillMaxWidth().appear(3),
+            onClick = onOpenBuilder
+        )
         if (aiAvailable) {
-            Spacer(Modifier.height(Space.xl))
+            Spacer(Modifier.height(Space.s))
             Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
                 SuggestionCard(
                     "📋", "What's today?", "See what's left",
